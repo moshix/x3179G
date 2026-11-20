@@ -53,3 +53,13 @@ connection, python3 and xdotool (`brew install xdotool`).
 - green block cursor
 - Backspace works
 - Return is newline and Option is Enter
+
+## Quick start: connecting to moshix.tech port 2300
+
+Start XQuartz, build if needed, then run from the project directory:
+
+    make -f Makefile.macos
+    XENVIRONMENT=$PWD/X3179.ad ./x3179 -host moshix.tech -xrm '*port: 2300'
+
+The port is an X resource (`-xrm '*port: ...'`), not a command-line
+flag. Add `-xrm '*fontSize: 10'` for smaller text at startup.
