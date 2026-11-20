@@ -1,0 +1,68 @@
+olwm*FocusLenience : True
+*Input: true
+*input: true
+x3270*allowShellResize:         False
+x3270*resizable:                False
+x3270*Font:                     ebcdic-3270
+x3270*BorderWidth:              0
+x3270*highlightThickness:       0
+x3270*backPixmap:               True
+x3270*titlebar.orientation:     horizontal
+x3270*titlebar*font:            variable
+x3270*MenuButton.width:         100
+x3270*MenuButton.internalwidth: 100
+x3270*SimpleMenu.width:         100
+x3270*net.label:                Network
+x3270*net.height:               20
+x3270*options.label:            Options
+x3270*options.menuName:         optmenu
+x3270*options.fromHoriz:        net
+x3270*thickLine:                2
+x3270*main*defaultDistance:     0
+x3270*main.orientation:         vertical
+x3270*Model:                    3
+x3270*Synchronous:              False
+x3270*Background:               black
+x3270.main.Translations: \
+	<Key>KP_Enter:          key(enter)\n\
+	<Key>BackSpace:         key(backspace)\n\
+	<Key>Help:              key(clear)\n\
+	<Key>Delete:            key(delete)\n\
+	<Key>Down:              key(down)\n\
+	<Key>Up:                key(up)\n\
+	<Key>Return:            key(enter)\n\
+	<Key>Insert:            key(insertmode)\n\
+	<Key>Left:              key(left)\n\
+	<Key>Cancel:            key(reset)\n\
+	<Key>Execute:           key(return)\n\
+	<Key>Right:             key(right)\n\
+	<Key>Tab:               key(tab)\n\
+	Shift<Key>Tab:          key(backtab)\n\
+	<Key>F1:                key(pf1)\n\
+	<Key>F2:                key(pf2)\n\
+	<Key>F3:                key(pf3)\n\
+	<Key>F4:                key(pf4)\n\
+	<Key>F5:                key(pf5)\n\
+	<Key>F6:                key(pf6)\n\
+	<Key>F7:                key(pf7)\n\
+	<Key>F8:                key(pf8)\n\
+	<Key>F9:                key(pf9)\n\
+	<Key>F10:               key(pf10)\n\
+	<Key>F11:               key(pf11)\n\
+	<Key>F12:               key(pf12)\n\
+	<Key>Select:            key(pa3)\n\
+	<Key>Next:              key(pa2)\n\
+	<Key>Prior:             key(pa1)\n\
+	<Key>Shift_L:           modifier-key(shift)\n\
+	<Key>Shift_R:           modifier-key(shift)\n\
+	<Key>Caps_Lock:         modifier-key()\n\
+	<Key>:                  local-key()\n\
+	<Enter>:                enter()\n\
+	<Leave>:                leave()\n\
+	<GrExp>:                graphics-expose()\n\
+	<Btn1Down>:             mouse-set-text-cursor()key(enter)\n\
+	<Btn2Down>:             mouse-set-text-cursor()\n\
+	<Btn3Down>:             key(pf3)\n\
+	Ctrl<Btn1Down>:         popup-menu(mainMenu)\n\
+	Ctrl<Btn2Down>:         popup-menu(optionsMenu)\n\
+	Ctrl<Btn3Down>:         popup-menu(fontMenu)\n

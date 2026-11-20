@@ -1,0 +1,50 @@
+#ifdef BandAidCompiler
+#include BandAidCompiler
+#endif
+/*    if you want a titlebar with pulldowns and you have R4:
+ *      add -DR4PULLDOWNS to CDEBUGFLAGS
+ *
+ *    if your kernel doesnt have async I/O (specifically,
+ *    fcntl(net_socket, F_SETFL,FNDELAY), 
+ *    remove -DHAVE_ASYNCIO from CDEBUGFLAGS.
+ */
+
+/* #if defined(ultrix) || defined(hp9000s800) */
+
+#if 1
+    CDEBUGFLAGS =  -g -DHAVE_ASYNCIO  -DR4PULLDOWNS 
+#else
+    CDEBUGFLAGS = -g  
+#endif
+    CDEBUGFLAGS=-O -DHAVE_ASYNCIO
+
+           SRCS =  \
+		    x3179.c \
+		   ColorScreen.c \
+		   eventhdlr.c \
+		   netio.c \
+		   graphics.c \
+		   fs3270.c \
+		   strcasecmp.c \
+		   asc_ebc.c \
+		   tables.c
+           OBJS = \
+		    x3179.o \
+		   ColorScreen.o \
+		   eventhdlr.o \
+		   netio.o \
+		   graphics.o \
+		   fs3270.o \
+		   strcasecmp.o \
+		   asc_ebc.o \
+		   tables.o
+
+
+LOCAL_LIBRARIES = XawClientLibs 
+        DEPLIBS = XawClientDepLibs
+       PROGRAMS = x3179
+
+ComplexProgramTarget(x3179)
+InstallAppDefaults(X3179)
+
+DependTarget()

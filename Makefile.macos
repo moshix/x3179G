@@ -1,0 +1,60 @@
+# Makefile.macos - build x3179 on macOS (Apple Silicon or Intel)
+#
+# Needs XQuartz (https://www.xquartz.org) which provides Xt/Xaw/Xmu
+# under /opt/X11.  Homebrew's X11 packages lack libXaw, so we use
+# XQuartz exclusively to avoid mixing two X11 installations.
+#
+#   make -f Makefile.macos          build ./x3179
+#   make -f Makefile.macos test     build + run tests/smoke.sh
+#   make -f Makefile.macos clean
+#
+# The original Makefile is imake output for AIX 3.1.5 and is kept as is.
+#
+# NOTE: macOS file systems are case-insensitive, so the binary "x3179"
+# and the old app-defaults copy "X3179" are the SAME file.  Only
+# X3179.ad is kept; load it with XENVIRONMENT=$PWD/X3179.ad.
+
+X11      ?= /opt/X11
+CC       ?= cc
+
+# This is 1991-93 K&R C.  gnu89 keeps implicit int / K&R definitions
+# legal; the -Wno-error flags undo errors that modern clang turned on
+# by default for constructs this code relies on everywhere.
+CSTD     = -std=gnu89
+CWARN    = -w \
+           -Wno-error=implicit-function-declaration \
+           -Wno-error=implicit-int \
+           -Wno-error=int-conversion \
+           -Wno-error=incompatible-pointer-types \
+           -Wno-error=incompatible-function-pointer-types \
+           -Wno-error=return-type
+CDEFS    = -DHAVE_ASYNCIO
+CFLAGS  ?= -O
+ALL_CFLAGS = $(CFLAGS) $(CSTD) $(CWARN) $(CDEFS) -I. -I$(X11)/include
+
+LDFLAGS += -L$(X11)/lib -Wl,-rpath,$(X11)/lib
+LDLIBS   = -lXaw -lXmu -lXt -lSM -lICE -lXext -lX11
+
+# strcasecmp.c is omitted: libc already provides strcasecmp/strncasecmp
+# and the local K&R copy conflicts with the system prototypes.
+SRCS = x3179.c ColorScreen.c eventhdlr.c netio.c graphics.c \
+       fs3270.c asc_ebc.c tables.c
+OBJS = $(SRCS:.c=.o)
+
+x3179: $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+
+%.o: %.c
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# Rebuild everything when any header changes: several files share the
+# ColorScreen widget struct, and stale objects would use old offsets.
+$(OBJS): $(wildcard *.h)
+
+test: x3179
+	sh tests/smoke.sh
+
+clean:
+	rm -f $(OBJS) x3179
+
+.PHONY: test clean

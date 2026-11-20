@@ -1,0 +1,14 @@
+#define Cw_background			cw->core.background
+#define Cw_border			cw->core.border
+#define Cw_borderWidth			cw->core.borderWidth
+#define Cw_cursor			cw->core.cursor
+#define Cw_destroyCallback			cw->core.destroyCallback
+#define Cw_font			cw->core.font
+#define Cw_foreground			cw->core.foreground
+#define Cw_insensitiveBorder			cw->core.insensitiveBorder
+#define Cw_mappedWhenManaged			cw->core.mappedWhenManaged
+#define Cw_resize			cw->core.resize
+#define Cw_sensitive			cw->core.sensitive
+#define Cw_x			cw->core.x
+#define Cw_y			cw->core.y
+#define Cw_			cw->core.

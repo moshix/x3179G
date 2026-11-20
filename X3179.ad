@@ -1,0 +1,106 @@
+! Switching lines or columns will cause a shell resize
+
+x3179*allowShellResize: False
+x3179*resizable: False
+
+x3179*Model:                    3
+x3179*Foreground:               Blue
+x3179*Background:               Black
+x3179*BorderWidth:		0
+
+x3179*highlightThickness:	0
+
+x3179*backPixmap:               False
+
+!x3179*titlebar.orientation:     horizontal
+!x3179*titlebar*font:		variable
+x3179*MenuButton.width:		100
+x3179*MenuButton.internalwidth:	100
+x3179*net.label:		Network
+x3179*net.height:               20
+x3179*net.menuName:             netmenu
+x3179*options.height:           20
+x3179*options.label:		Options
+x3179*options.menuName:         optmenu
+x3179*options.fromHoriz:	net
+x3179*thickLine:                2
+
+x3179*main*defaultDistance:     0
+x3179*main.orientation:       	vertical
+
+! macOS keyboard layout:
+!   Return            -> 3270 Newline (cursor to next line's input field)
+!   Option (either)   -> 3270 Enter (send to host).  XQuartz reports
+!                        Option as Mode_switch, or as Alt_L/Alt_R when
+!                        "Option keys send Alt_L and Alt_R" is enabled.
+!   keypad Enter      -> 3270 Enter as well
+!   BackSpace         -> erase previous character and move back
+
+!x3179*screen.fromVert:		titlebar
+!       <Key>e:		string(e)\n\
+!       <Key>asciicircum,<Key>e:		string(E)
+x3179*screen.translations:	#override \n\
+None<Key>eacute:		string({)\n\
+None<Key>egrave:		string(})\n\
+None<Key>agrave:		string(@)\n\
+None<Key>ccedilla:		string(\\)\n\
+	<Key>KP_Enter:          key(enter)\n\
+	<Key>BackSpace:         key(backspace)\n\
+	<Key>Help:              key(clear)\n\
+	<Key>Delete:            key(delete)\n\
+	<Key>Down:              key(down)\n\
+	<Key>Up:                key(up)\n\
+	<Key>Return:            key(return)\n\
+	<Key>Mode_switch:       key(enter)\n\
+	<Key>Insert:            key(insertmode)\n\
+	<Key>Left:              key(left)\n\
+	<Key>Cancel:            key(reset)\n\
+	<Key>Execute:           key(return)\n\
+	<Key>Right:             key(right)\n\
+	<Key>Tab:               key(tab)\n\
+	Shift<Key>Tab:          key(backtab)\n\
+	<Key>F1:                key(pf1)\n\
+	<Key>F2:                key(pf2)\n\
+	<Key>F3:                key(pf3)\n\
+	<Key>F4:                key(pf4)\n\
+	<Key>F5:                key(pf5)\n\
+	<Key>F6:                key(pf6)\n\
+	<Key>F7:                key(pf7)\n\
+	<Key>F8:                key(pf8)\n\
+	<Key>F9:                key(pf9)\n\
+	<Key>F10:               key(pf10)\n\
+	<Key>F11:               key(pf11)\n\
+	<Key>F12:               key(pf12)\n\
+	<Key>KP_F1:             key(pf9)\n\
+	<Key>KP_F2:             key(pf10)\n\
+	<Key>KP_F3:             key(pf11)\n\
+	<Key>KP_F4:             key(pf12)\n\
+	<Key>Select:            key(pa3)\n\
+	<Key>Next:              key(pa2)\n\
+	<Key>Prior:             key(pa1)\n\
+	<Key>Shift_L:           modifier-key(shift)\n\
+	<Key>Shift_R:           modifier-key(shift)\n\
+	<Key>Caps_Lock:         modifier-key(shift)\n\
+	<Key>Control_L:         modifier-key()\n\
+	<Key>Control_R:         modifier-key()\n\
+	<Key>Alt_R:             key(enter)\n\
+	<Key>Alt_L:             key(enter)\n\
+	<Key>0x1000ff2e:        modifier-key()\n\
+	<Enter>:                enter()\n\
+	<Leave>:                leave()\n\
+	<GrExp>:                graphics-expose()\n\
+	<Key>Clear:	           	key(CLEAR)\n\
+	<Key>Find:            		key(eraseeof)\n\
+	<Key>Menu:	            	key(reset)\n\
+	<Key>F18:               key(cursorstyle)\n\
+	<Key>F19:		             key(cursor_alt)\n\
+	<Key>F20:		             key(cursor_blink)\n\
+ <Key>:                  local-key()\n\
+ Ctrl<Btn1Down>:        	popup-menu(mainMenu)\n\
+ Ctrl<Btn2Down>:        	popup-menu(optionsMenu)\n\
+ Ctrl<Btn3Down>:         popup-menu(fontMenu)\n\
+	<Btn1Down>:             mouse-set-text-cursor()key(enter)\n\
+	<Btn2Down>:             mouse-set-text-cursor()\n\
+	<Btn3Down>:             key(pf3)
+
+

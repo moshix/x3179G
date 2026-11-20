@@ -1,0 +1,1920 @@
+
+#define Redisplay CwRedisplay
+
+/*
+ * ColorScreen.c - ColorScreen widget
+ *   lifted from Xaw label widget
+ *
+ */
+
+#define XtStrlen(s)		((s) ? strlen(s) : 0)
+
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#ifdef R3
+#include <X11/Xmu.h>
+#else
+#include <X11/Xmu/Xmu.h>
+#endif
+#include <X11/IntrinsicP.h>
+#include <X11/StringDefs.h>
+#include <X11/cursorfont.h>
+/*#include <X11/Xaw/XawInit.h>*/
+
+
+#if 1
+#include "ColorScreenP.h"
+#else
+#include <X11/Xaw/ColorScreenP.h>
+#endif
+
+#include "global.h"
+#include "dbug.h"
+#include "ibm3270.h"
+
+#define CURRFONTSTR(cw) (cw->colorScreen.fonts[cw->colorScreen.current_font])
+
+static int Pattern_Sym = 0,courcol=0;
+static char dot[] = {2,2};
+static char short_dash[] = {3,2};
+static char long_dash[] = {5,2};
+static char dash_double_dot[] = {5,3,2,2,2,3};
+static char dash_dot[] = {5,3,2,3};
+static char double_dot[] = {2,2,2,4};
+
+/*  bitmap to replace font ibm-3270 */
+static Pixmap ibm_pix[30];
+#define ibm_width 9
+#define ibm_height 12
+static char ibm_bits[30][24] = {
+  {0x04, 0x00, 0x0a, 0x00, 0x11, 0x00, 0x11, 0x00, 0x1f, 0x00, 0x11, 0x00,
+   0x11, 0x00, 0x11, 0x00, 0x00, 0x00, 0xff, 0x01, 0x01, 0x01, 0xff, 0x01},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+   0x38, 0x00, 0x7c, 0x00, 0xee, 0x00, 0xc7, 0x01, 0x83, 0x01, 0x01, 0x01},
+  {0xf0, 0x00, 0x20, 0x01, 0x20, 0x01, 0xe0, 0x00, 0x20, 0x01, 0x20, 0x01,
+   0xf0, 0x00, 0x00, 0x00, 0xff, 0x01, 0x01, 0x01, 0x01, 0x01, 0xff, 0x01},
+  {0x00, 0x00, 0xff, 0x01, 0x01, 0x01, 0x09, 0x01, 0x05, 0x01, 0x05, 0x01,
+   0x35, 0x01, 0x4d, 0x01, 0x45, 0x01, 0x39, 0x01, 0x01, 0x01, 0xff, 0x01},
+  {0x04, 0x00, 0x0c, 0x00, 0x1c, 0x00, 0x3c, 0x00, 0x7c, 0x00, 0x7c, 0x00,
+   0xfc, 0x00, 0x7c, 0x00, 0x3c, 0x00, 0x1c, 0x00, 0x0c, 0x00, 0x04, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+   0x60, 0x00, 0xff, 0x00, 0x60, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x01, 0x00, 0x03, 0x00, 0x06, 0x00, 0xff, 0x01, 0x19, 0x01,
+   0x31, 0x01, 0xff, 0x01, 0xc0, 0x00, 0x80, 0x01, 0x00, 0x01, 0x00, 0x00},
+  {0x00, 0x00, 0x10, 0x00, 0x28, 0x00, 0x44, 0x00, 0x82, 0x00, 0xee, 0x00,
+   0x28, 0x00, 0x28, 0x00, 0x28, 0x00, 0x28, 0x00, 0x28, 0x00, 0x38, 0x00},
+  {0x00, 0x00, 0x38, 0x00, 0x28, 0x00, 0x38, 0x00, 0x10, 0x00, 0xfe, 0x00,
+   0x10, 0x00, 0x10, 0x00, 0x28, 0x00, 0x44, 0x00, 0x82, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x3c, 0x00, 0x48, 0x00, 0x48, 0x00, 0x38, 0x00, 0x48, 0x00,
+   0x48, 0x00, 0x3c, 0x00, 0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x38, 0x00, 0x28, 0x00, 0x28, 0x00, 0x28, 0x00, 0x28, 0x00,
+   0x28, 0x00, 0xee, 0x00, 0x82, 0x00, 0x44, 0x00, 0x28, 0x00, 0x10, 0x00},
+  {0xff, 0x01, 0x01, 0x01, 0x39, 0x01, 0x45, 0x01, 0x45, 0x01, 0x21, 0x01,
+   0x11, 0x01, 0x11, 0x01, 0x01, 0x01, 0x11, 0x01, 0x01, 0x01, 0xff, 0x01},
+  {0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01,
+   0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01},
+  {0x00, 0x00, 0x01, 0x00, 0x03, 0x00, 0x07, 0x00, 0x0e, 0x00, 0x1c, 0x00,
+   0xff, 0x01, 0x70, 0x00, 0xe0, 0x00, 0xc0, 0x01, 0x80, 0x01, 0x00, 0x01},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x3f, 0x00, 0x10, 0x00, 0x08, 0x00, 0x04, 0x00, 0xfe, 0x01, 0x00, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x00, 0x00},
+  {0x90, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x01, 0x82, 0x00,
+   0x80, 0x00, 0x80, 0x00, 0x84, 0x00, 0x80, 0x00, 0x10, 0x00, 0x80, 0x00},
+  {0x04, 0x00, 0x14, 0x00, 0x02, 0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,  
+   0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x01, 0x01, 0x83, 0x01, 0xc7, 0x01, 0xef, 0x01, 0xfe, 0x00, 0x7c, 0x00,
+   0x7c, 0x00, 0xfe, 0x00, 0xef, 0x01, 0xc7, 0x01, 0x83, 0x01, 0x01, 0x01},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01,
+   0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x0c, 0x00,
+   0xfe, 0x01, 0x0c, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x01, 0x00, 0x03, 0x00, 0x06, 0x00, 0xff, 0x01, 0xff, 0x01, 0xff, 0x01,
+   0xff, 0x01, 0xff, 0x01, 0xff, 0x01, 0xc0, 0x00, 0x80, 0x01, 0x00, 0x01},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x70, 0x00, 0x88, 0x00, 0x88, 0x01,
+   0x88, 0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01,
+   0xb8, 0x01, 0xb8, 0x01, 0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0xff, 0x01, 0x01, 0x01, 0x21, 0x01, 0x31, 0x01, 0x29, 0x01,
+   0x25, 0x01, 0x7d, 0x01, 0x21, 0x01, 0x21, 0x01, 0x01, 0x01, 0xff, 0x01},
+  {0x10, 0x00, 0x28, 0x00, 0x44, 0x00, 0x44, 0x00, 0x7c, 0x00, 0x44, 0x00,
+   0x44, 0x00, 0x00, 0x00, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01, 0x01, 0x01, 0x01, 0x01,
+   0x01, 0x01, 0xff, 0x01, 0x01, 0x01, 0xff, 0x01, 0x00, 0x00, 0x00, 0x00},
+  {0xff, 0x01, 0x01, 0x01, 0x39, 0x01, 0x39, 0x01, 0x11, 0x01, 0xff, 0x01,
+   0x11, 0x01, 0x11, 0x01, 0x29, 0x01, 0x45, 0x01, 0x83, 0x01, 0xff, 0x01}
+};
+
+
+#define pattern_width 8
+#define pattern_height 8
+
+#ifndef FRENCH
+static unsigned char trfont[] = {   /* transcoding table to use ordinary ascii font */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 0 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 1 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 2 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 3 */
+  32, 91, 93,156,206, 32,223,241, 36,254,205, 46, 60, 40, 43,124,    /* 4 */
+  38,108, 32, 94,249, 39, 44,133,138,141, 33, 36, 42, 41, 59,186,    /* 5 */
+  45, 47,165,167,214,244,152,133,138,146,237, 44, 37, 95, 62, 63,    /* 6 */
+ 157,165,167,129,135,132,137,139,148, 96, 58, 35, 64, 39, 61, 34,    /* 7*/
+ 129, 97, 98, 99,100,101,102,103,104,105,131,136,140,147,150,160,    /* 4 */
+ 130,106,107,108,109,110,111,112,113,114,161,162,163,164,183,212,    /* 5 */
+ 141,126,115,116,117,118,119,120,121,122,227,235,199,229, 89, 65,    /* 6 */
+  69, 69, 73, 79, 85, 89, 67,142,211,216,153,154,182,210,215,226,    /* 7 */
+ 123, 65, 66, 67, 68, 69, 70, 71, 72, 73,234,181,144,214, 32, 32,    /* 8 */
+  41, 74, 75, 76, 77, 78, 79, 80, 81, 82,224,233,165, 32, 32, 32,    /* 9 */
+  92,145, 83, 84, 85, 86, 87, 88, 89, 90,155,198,135, 32, 32, 32,    /* 10 */
+  48, 49, 50, 51, 52, 53, 54, 55, 56, 57,146,157,199,128, 32, 32,    /* 11 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 12 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 13 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 14 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32     /* 15 */
+};
+#else  /*  french keyboard  */
+static unsigned char trfont[] = {   /* transcoding table to use ordinary ascii font */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 0 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 1 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 2 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 3 */
+  32, 91,131,156,206, 32,223,241, 36,254,205, 46, 60, 40, 43,124,    /* 4 */
+  38,108,136, 94,249, 39,140,133,138,141, 33, 36, 42, 41, 59,186,    /* 5 */
+  45, 47,165,167,214,244,152,133,138,146,151, 44, 37, 95, 62, 63,    /* 6 */
+ 157,165,167,129,135,132,137,139,148, 96, 58, 35,133, 39, 61, 34,    /* 7*/
+ 129, 97, 98, 99,100,101,102,103,104,105,131,136,140,147,150,160,    /* 4 */
+ 130,106,107,108,109,110,111,112,113,114,161,162,163,164,183,212,    /* 5 */
+ 141,126,115,116,117,118,119,120,121,122,227,235,199,229, 89, 65,    /* 6 */
+  69, 69, 73, 79, 85, 89, 67,142,211,216,153,154,182,210,215,226,    /* 7 */
+ 130, 65, 66, 67, 68, 69, 70, 71, 72, 73,234,147,144,214, 32, 32,    /* 8 */
+ 138, 74, 75, 76, 77, 78, 79, 80, 81, 82,224,150,165, 32, 32, 32,    /* 9 */
+ 135,145, 83, 84, 85, 86, 87, 88, 89, 90,155,198,135, 32, 32, 32,    /* 10 */
+  48, 49, 50, 51, 52, 53, 54, 55, 56, 57,146,157,199,128, 32, 32,    /* 11 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 12 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 13 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 14 */
+  32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32     /* 15 */
+};
+#endif
+
+ static char pattab[15][8] = {
+	{0xdd, 0xff, 0x77, 0xff, 0xdd, 0xff, 0x77, 0xff},	/* 87.5% gray */
+	{0xdd, 0x77, 0xdd, 0x77, 0xdd, 0x77, 0xdd, 0x77},	/* 75% gray */
+	{0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55},	/* 50% gray */
+	{0xaa, 0x00, 0x55, 0x00, 0xaa, 0x00, 0x55, 0x00},	/* 25% gray */
+	{0x88, 0x00, 0x22, 0x00, 0x88, 0x00, 0x22, 0x00},	/* 12.5% gray */
+	{0x80, 0x00, 0x08, 0x00, 0x80, 0x00, 0x08, 0x00},	/* 6.25% gray */
+	{0x80, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00},	/* 3.125% gray */
+	{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},	/* 1.5625% gray */
+	{0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88},	/* vertical lines */
+	{0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00},	/* horizontal lines */
+	{0x88, 0x88, 0x44, 0x44, 0x22, 0x22, 0x11, 0x11},	/* "/" diags., less steep */
+	{0x88, 0x44, 0x22, 0x11, 0x88, 0x44, 0x22, 0x11},	/* "/" diags., 45 degrees */
+	{0x11, 0x11, 0x22, 0x22, 0x44, 0x44, 0x88, 0x88},	/* "\" diags, less steep */
+	{0x11, 0x22, 0x44, 0x88, 0x11, 0x22, 0x44, 0x88},	/* "\" diags., 45 degrees */
+	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};	/* white (none) */
+
+extern  int pat_width,pat_height,pat_col;
+extern Pixmap pat_pixmap[5][256];
+       /*  PV  pour les PS */
+ int pat_width;
+ int pat_height;
+ int pat_col;
+ Pixmap pat_pixmap[5][256];
+
+
+
+
+
+/****************************************************************
+ *
+ * Full class record constant
+ *
+ ****************************************************************/
+
+/* Private Data */
+
+#define offset(field) XtOffset(ColorScreenWidget, field)
+
+static XtResource resources[] = {
+  { XtNlines, XtCLines, "Cardinal",sizeof(Cardinal),
+      offset(colorScreen.lines), XtRImmediate,(caddr_t) 32},
+  
+  { XtNcolumns, XtCColumns, "Cardinal",sizeof(Cardinal),
+      offset(colorScreen.columns), XtRImmediate, (caddr_t) 80},
+ 
+  { XtNfont, XtCFont, XtRFontStruct,sizeof(XFontStruct *),
+      offset(colorScreen.fonts[DEFAULT_FONT]), XtRString  , "fixed"},
+  
+  { XtNapl_font, XtCAplFont, XtRFontStruct,sizeof(XFontStruct *), 
+      offset(colorScreen.fonts[APL_FONT]), XtRString, "fixed"},     
+  
+  { XtNmodeline_font, XtCModeLineFont, XtRFontStruct,sizeof(XFontStruct *), 
+      offset(colorScreen.fonts[MODE_FONT]), XtRString, "fixed"},
+  
+  { XtNlinespacing, XtCLinespacing, XtRDimension, sizeof(Dimension), 
+      offset(colorScreen.line_spacing), XtRImmediate, (caddr_t) 2},
+  
+  { XtNibm_default, XtCIBM_default, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[DEFAULT_COLOR]), XtRString, "green"},
+  
+  { XtNibm_blue, XtCIBM_blue, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[BLUE]), XtRString  , "SkyBlue"},
+  
+  { XtNibm_red, XtCIBM_red, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[RED]), XtRString  , "OrangeRed"},
+  
+  { XtNibm_pink, XtCIBM_pink, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[PINK]), XtRString  , "magenta"},
+  
+  { XtNibm_green, XtCIBM_green, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[GREEN]), XtRString  , "green"},
+  
+  { XtNibm_turquoise, XtCIBM_turquoise, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[TURQUOISE]), XtRString  , "cyan"},
+  
+  { XtNibm_yellow, XtCIBM_yellow, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[YELLOW]), XtRString  , "yellow"},
+  
+  { XtNibm_white, XtCIBM_white, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[WHITE]), XtRString  , "white"},
+
+  { XtNibm_black, XtCIBM_black, XtRPixel,sizeof(Pixel), 
+      offset(colorScreen.colors[BLACK]), XtRString  , "black"},
+  
+  {XtNinternalWidth, XtCWidth, XtRDimension,  sizeof(Dimension),
+     offset(colorScreen.internal_width), XtRImmediate, (caddr_t) 4},
+  
+  {XtNinternalHeight, XtCHeight, XtRDimension, sizeof(Dimension),
+     offset(colorScreen.internal_height), XtRImmediate, (caddr_t) 2},
+  
+  {XtNdefaultchar, XtCDefaultchar, XtRUnsignedChar, sizeof(unsigned char),
+     offset(colorScreen.default_char), XtRImmediate, (caddr_t) 16},
+  
+  {XtNmodeInternalWidth, XtCWidth, XtRDimension,  sizeof(Dimension),
+     offset(colorScreen.mode_internal_width), XtRImmediate, (caddr_t) 4},
+  
+  {XtNmodeInternalHeight, XtCHeight, XtRDimension, sizeof(Dimension),
+     offset(colorScreen.mode_internal_height), XtRImmediate, (caddr_t) 2},
+ 
+  {XtNsepLineWidth, XtCSepLineWidth, XtRDimension,  sizeof(Dimension),
+     offset(colorScreen.sep_line_width), XtRImmediate, (caddr_t) 2},
+
+  {XtNbackPixmap, XtCBackPixmap, XtRBoolean, sizeof(Boolean),
+     offset(colorScreen.back_pixmap), XtRImmediate, (caddr_t) FALSE},
+ 
+   {XtNBlockCursor, XtCBlockCursor, XtRBoolean, sizeof(Boolean),
+      offset(colorScreen.block_cursor), XtRImmediate, (caddr_t) TRUE},
+ 
+   {XtNBlinkingCursor, XtCBlinkingCursor, XtRBoolean, sizeof(Boolean),
+      offset(colorScreen.blinking_cursor), XtRImmediate, (caddr_t) FALSE},
+  
+  { XtNBlinkDuration, XtCBlinkDuration, XtRInt, sizeof(int), 
+       offset(colorScreen.blink_duration), XtRImmediate, (caddr_t)500},
+  
+  {XtNthickLine, XtCThickLine, XtRInt, sizeof(int),
+     offset(colorScreen.thick_line), XtRImmediate, (caddr_t) 3},
+
+  /* Text is drawn with this scalable font so it can grow/shrink with
+   * the window.  Set to "" to use the fixed "font" resource instead. */
+  {XtNscalableFont, XtCScalableFont, XtRString, sizeof(String),
+     offset(colorScreen.scalable_font), XtRString,
+     "-bitstream-bitstream vera sans mono-medium-r-normal--%d-0-0-0-m-0-iso8859-1"},
+
+  {XtNfontSize, XtCFontSize, XtRInt, sizeof(int),
+     offset(colorScreen.font_size), XtRImmediate, (caddr_t) 13},
+
+};
+
+static void Initialize();
+static void Resize();
+static void Redisplay();
+static void Realize();
+static Boolean SetValues();
+static void ClassInitialize();
+static void Destroy();
+static XtGeometryResult QueryGeometry();
+
+
+ColorScreenClassRec colorScreenClassRec = {
+  {
+/* core_class fields */	
+#define superclass		(&simpleClassRec)
+    /* superclass	  	*/	(WidgetClass) superclass,
+    /* class_name	  	*/	"ColorScreen",
+    /* widget_size	  	*/	sizeof(ColorScreenRec),
+    /* class_initialize   	*/	ClassInitialize,
+    /* class_part_initialize	*/	NULL,
+    /* class_inited       	*/	FALSE,
+    /* initialize	  	*/	Initialize,
+    /* initialize_hook		*/	NULL,
+    /* realize		  	*/	Realize,
+    /* actions                  */      NULL,
+    /* num_actions              */      0,
+    /* resources	  	*/	resources,
+    /* num_resources	  	*/	XtNumber(resources),
+    /* xrm_class	  	*/	NULLQUARK,
+    /* compress_motion	  	*/	TRUE,
+    /* compress_exposure  	*/	TRUE,
+    /* compress_enterleave	*/	TRUE,
+    /* visible_interest	  	*/	FALSE,
+    /* destroy		  	*/	Destroy,
+    /* resize                   */      Resize,
+    /* expose		  	*/	Redisplay,
+    /* set_values	  	*/	SetValues,
+    /* set_values_hook		*/	NULL,
+    /* set_values_almost	*/	XtInheritSetValuesAlmost,
+    /* get_values_hook		*/	NULL,
+    /* accept_focus	 	*/	NULL,
+    /* version			*/	XtVersion,
+    /* callback_private   	*/	NULL,
+    /* tm_table		   	*/	NULL,
+    /* query_geometry		*/	QueryGeometry,
+    /* display_accelerator	*/	XtInheritDisplayAccelerator,
+    /* extension		*/	NULL
+  },
+/* Simple class fields initialization */
+  {
+    /* change_sensitive		*/	XtInheritChangeSensitive
+  },
+      {
+	 0
+      }
+  
+  
+};
+WidgetClass colorScreenWidgetClass = (WidgetClass)&colorScreenClassRec;
+
+
+#define Cw_background		cw->core.background_pixel
+#define Cw_border		cw->core.border
+#define Cw_borderWidth		cw->core.border_width
+#define Cw_cursor		cw->core.cursor
+#define Cw_destroyCallback	cw->core.destroy_callback
+#define Cw_foreground		cw->core.foreground
+#define Cw_insensitiveBorder	cw->core.insensitive_border
+#define Cw_mappedWhenManaged	cw->core.mappedWhenManaged
+#define Cw_resize		cw->core.resize
+#define Cw_sensitive		cw->core.sensitive
+#define Cw_x			cw->core.x
+#define Cw_y			cw->core.y
+#define Cw_width		cw->core.width
+#define Cw_height		cw->core.height
+                                                                                                                    
+#define Cw_lines		cw->colorScreen.lines
+#define Cw_columns		cw->colorScreen.columns
+#define Cw_default_font		cw->colorScreen.fonts[DEFAULT_FONT]
+#define Cw_apl_font		cw->colorScreen.fonts[APL_FONT]
+#define Cw_mode_font		cw->colorScreen.fonts[MODE_FONT]
+#define Cw_linespacing		cw->colorScreen.line_spacing
+#define Cw_colors		cw->colorScreen.colors
+#define Cw_ibm_default		cw->colorScreen.colors[0]
+#define Cw_ibm_blue		cw->colorScreen.colors[1]
+#define Cw_ibm_red		cw->colorScreen.colors[2]
+#define Cw_ibm_pink		cw->colorScreen.colors[3]
+#define Cw_ibm_green		cw->colorScreen.colors[4]
+#define Cw_ibm_turquoise	cw->colorScreen.colors[5]
+#define Cw_ibm_yellow		cw->colorScreen.colors[6]
+#define Cw_ibm_white		cw->colorScreen.colors[7]
+ 
+#define Cw_cursor_gc		cw->colorScreen.cursor_gc
+#define Cw_cursor_color		cw->colorScreen.cursor_color
+#define Cw_cursor_x		cw->colorScreen.cursor_x
+#define Cw_cursor_y		cw->colorScreen.cursor_y
+#define Cw_cursor_ch		cw->colorScreen.cursor_ch
+#define Cw_cursor_state		cw->colorScreen.cursor_state
+#define Cw_cursor_attr		cw->colorScreen.cursor_attr
+#define Cw_blink_interval_id	cw->colorScreen.blink_interval_id
+#define Cw_blink_duration	cw->colorScreen.blink_duration
+#define Cw_block_cursor 	cw->colorScreen.block_cursor
+#define Cw_blinking_cursor 	cw->colorScreen.blinking_cursor
+
+#define Cw_internalWidth	cw->colorScreen.internal_width
+#define Cw_internalHeight	cw->colorScreen.internal_height
+#define Cw_defaultChar		cw->colorScreen.default_char
+#define Cw_sepLineWidth		cw->colorScreen.sep_line_width
+#define Cw_modeInternalHeight	cw->colorScreen.mode_internal_height
+#define Cw_modeInternalWidth	cw->colorScreen.mode_internal_width
+#define Cw_mode_gc	        cw->colorScreen.mode_gc
+#define Cw_back_pixmap          cw->colorScreen.back_pixmap
+#define Cw_init                 cw->colorScreen.init
+#define Cw_next_field           cw->colorScreen.next_field
+
+#define Cw_att			cw->colorScreen.att
+#define Cw_screen		cw->colorScreen.screen
+#define Cw_bpixmap              cw->colorScreen.bpixmap
+#define Cw_current_font		cw->colorScreen.current_font
+#define Cw_text_gc		cw->colorScreen.text_gc
+#define Cw_graph_gc		cw->colorScreen.graph_gc
+#define Cw_char_width		cw->colorScreen.char_width
+#define Cw_char_height		cw->colorScreen.char_height
+#define Cw_modeline		cw->colorScreen.modeline
+#define Cw_mode_x		cw->colorScreen.mode_x
+#define Cw_mode_y		cw->colorScreen.mode_y
+#define Cw_sep_line_y		cw->colorScreen.sep_line_y
+#define Cw_thick_line           cw->colorScreen.thick_line
+#define Cw_scalable_font        cw->colorScreen.scalable_font
+#define Cw_font_size            cw->colorScreen.font_size
+#define Cw_cur_font_px          cw->colorScreen.cur_font_px
+#define Cw_x_margin             cw->colorScreen.x_margin
+#define Cw_y_margin             cw->colorScreen.y_margin
+
+/****************************************************************
+ *
+ * Public Procedures
+ *
+ *	Set a single character or string on a modeline,
+ *	on a specific without going through SetValues(). 
+ *	Assumes a fixed width font.
+ *	Hacked by pv to use pixmaps instead of a font 
+ ****************************************************************/
+
+/*
+ */
+void
+XawCsModeSetString(cw,pos,s,length)
+     register ColorScreenWidget cw;
+     Cardinal  pos;
+     unsigned  char  *s;
+     Cardinal  length;
+{
+  int act_length;
+  int ibm_rang,i;
+  char st[80];
+  if ( !XtIsRealized(cw) 
+      || (pos > Cw_columns - 1))
+    return;
+
+  /* trim to columns */
+
+  act_length =  min(Cw_columns - pos, length);
+  strncpy(&Cw_modeline[pos],s, act_length);
+
+
+/*  quand ce sont des vrais caracteres (SYSTEM) il faut les ecrire */
+   if (*s < 209 | (*s > 225 &* s <= 233) | (*s == 212)) {
+   for (i=0;i<act_length;i++) st[i]=trfont[*(s+i)];
+
+XDrawImageString(XtDisplay(cw), XtWindow(cw), Cw_mode_gc,
+		   Cw_mode_x + pos * Cw_default_font->max_bounds.width,
+		   Cw_mode_y, st, act_length);} 
+    else  {  for (i=0;i< length;i++) {
+ ibm_rang = *(s+i) - 211 ; if (ibm_rang > 30) ibm_rang = ibm_rang -16 ;
+ if (ibm_rang < 0) break;
+ if (ibm_rang == 0) ibm_rang = 1;
+ XCopyPlane(XtDisplay(cw), ibm_pix[ibm_rang], XtWindow(cw), Cw_mode_gc,0,0,
+    ibm_width, ibm_height, Cw_mode_x + (pos + i) * Cw_default_font->max_bounds.width,
+    Cw_mode_y - Cw_default_font->max_bounds.ascent,1);}}
+}
+
+
+/* 
+ *	same as above, just a single character
+ */
+void
+XawCsModeSetChar(cw,pos,ch)
+     register ColorScreenWidget cw;
+     Cardinal  pos;
+     unsigned  char  ch;
+{
+  XawCsModeSetString(cw,pos,&ch,1);
+}
+
+
+/****************************************************************
+ *
+ * Private Procedures
+ *
+ ****************************************************************/
+
+static void ClassInitialize()
+{
+/*    XawInitializeWidgetSet(); */
+/*XtAddConverter( XtRString, "Widget", XmuCvtStringToWidget,
+		    NULL, 0 );  */
+
+} /* ClassInitialize */
+
+
+
+/*
+ * Font scaling
+ * ------------
+ * Text is drawn with a scalable font (resource scalableFont, an XLFD
+ * pattern containing one %d for the pixel size).  When the window is
+ * resized we pick the largest pixel size whose text grid + status line
+ * still fits, so enlarging the window enlarges the characters.
+ *
+ * Every pixel size the server has rasterised is kept in font_cache so
+ * that dragging the window edge does not reload fonts over and over.
+ * x3179 has exactly one screen widget, so a file-level cache is fine.
+ */
+#define MIN_FONT_PX	6
+#define MAX_FONT_PX	120
+static XFontStruct *font_cache[MAX_FONT_PX + 1];
+
+/*
+ * The pattern goes to sprintf(), so accept it only if its single
+ * conversion is exactly one "%d"; anything else could misbehave.
+ */
+static Boolean ValidFontPattern(p)
+     char *p;
+{
+  char *pct;
+
+  if (p == NULL || (pct = strchr(p, '%')) == NULL)
+    return FALSE;
+  return pct[1] == 'd' && strchr(pct + 2, '%') == NULL
+    && strlen(p) < 400;
+}
+
+/* Load (or fetch from cache) the scalable font at pixel size px. */
+static XFontStruct *LoadScaledFont(cw, px)
+     ColorScreenWidget cw;
+     int px;
+{
+  char name[512];
+
+  if (px < MIN_FONT_PX || px > MAX_FONT_PX)
+    return NULL;
+  if (font_cache[px] == NULL) {
+    sprintf(name, Cw_scalable_font, px);
+    font_cache[px] = XLoadQueryFont(XtDisplay(cw), name);
+  }
+  return font_cache[px];
+}
+
+/*
+ * Pixel size the widget needs to show lines x columns plus the
+ * separator and status line in font fs (the "natural" size).
+ */
+static void SizeForFont(cw, fs, w, h)
+     ColorScreenWidget cw;
+     XFontStruct *fs;
+     int *w, *h;
+{
+  int ch = fs->max_bounds.ascent + fs->max_bounds.descent;
+
+  *w = Cw_columns * fs->max_bounds.width + 2 * Cw_internalWidth;
+  *h = Cw_lines * (ch + Cw_linespacing)
+     + 2 * Cw_internalHeight
+     + 2 * Cw_modeInternalHeight
+     + ch				/* status line */
+     + Cw_sepLineWidth;
+}
+
+/*
+ * Derive all text positions from the current font and the widget's
+ * actual size.  If the window is bigger than the grid needs (pixel
+ * sizes are discrete, so it usually is), the grid is centred.
+ */
+static void ComputeLayout(cw)
+     ColorScreenWidget cw;
+{
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  int nat_w, nat_h;
+
+  Cw_char_height = fs->max_bounds.ascent + fs->max_bounds.descent;
+  Cw_char_width = fs->max_bounds.width;
+
+  SizeForFont(cw, fs, &nat_w, &nat_h);
+  Cw_x_margin = Cw_internalWidth
+    + ((int)Cw_width > nat_w ? ((int)Cw_width - nat_w) / 2 : 0);
+  Cw_y_margin = Cw_internalHeight
+    + ((int)Cw_height > nat_h ? ((int)Cw_height - nat_h) / 2 : 0);
+
+  Cw_sep_line_y = Cw_y_margin + Cw_internalHeight
+    + Cw_lines * (Cw_char_height + Cw_linespacing);
+
+  Cw_mode_y = Cw_sep_line_y +
+    Cw_modeInternalHeight + Cw_default_font->max_bounds.ascent;
+
+  Cw_mode_x = ((int)Cw_width
+	       - Cw_default_font->max_bounds.width * (int)Cw_columns) / 2;
+}
+
+/*
+ * Switch to the largest font size whose natural size fits the
+ * widget's current width/height.  Sizes grow monotonically with px,
+ * so a binary search over [MIN_FONT_PX, MAX_FONT_PX] finds it in
+ * about 7 probes.  Returns TRUE if the font changed.
+ */
+static Boolean FitFontToWindow(cw)
+     ColorScreenWidget cw;
+{
+  int lo = MIN_FONT_PX, hi = MAX_FONT_PX, mid, best = 0;
+  int w, h;
+  XFontStruct *fs;
+
+  while (lo <= hi) {
+    mid = (lo + hi) / 2;
+    fs = LoadScaledFont(cw, mid);
+    if (fs != NULL) {
+      SizeForFont(cw, fs, &w, &h);
+      if (w <= (int)Cw_width && h <= (int)Cw_height) {
+	best = mid;		/* fits: try bigger */
+	lo = mid + 1;
+	continue;
+      }
+    }
+    hi = mid - 1;		/* too big (or unloadable): try smaller */
+  }
+  if (best == 0)
+    best = MIN_FONT_PX;		/* window smaller than smallest font */
+  if (best == Cw_cur_font_px || (fs = LoadScaledFont(cw, best)) == NULL)
+    return FALSE;
+
+  Cw_default_font = fs;
+  Cw_cur_font_px = best;
+  if (XtIsRealized((Widget)cw)) {
+    XSetFont(XtDisplay(cw), Cw_text_gc, fs->fid);
+    XSetFont(XtDisplay(cw), Cw_mode_gc, fs->fid);
+  }
+  return TRUE;
+}
+
+/*
+ * Calculate width and height of screen in pixels
+ * based on lines, columns and font geometry.
+ *
+ * The globals below are the character cell / screen size reported to
+ * the host (query reply) and used for 3179G graphics coordinates.
+ * They are taken from the base font size, not from whatever size the
+ * window has been scaled to, so graphics coordinates stay consistent.
+ */
+  int char_width, char_height;
+  int screen_width, screen_height;
+static void SetTextWidthAndHeight(cw)
+     ColorScreenWidget cw;
+{
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  XFontStruct *base = NULL;
+  int w, h;
+
+  SizeForFont(cw, fs, &w, &h);
+  Cw_width = w;
+  Cw_height = h;
+
+  if (Cw_cur_font_px)
+    base = LoadScaledFont(cw, Cw_font_size);
+  if (base == NULL)
+    base = fs;
+  char_width = base->max_bounds.width;
+  char_height = base->max_bounds.ascent + base->max_bounds.descent;
+  screen_width = Cw_columns * char_width ;
+  screen_height =  Cw_lines * char_height ;
+
+  ComputeLayout(cw);
+}
+
+
+/* ARGSUSED */
+static void Initialize(request, new)
+ Widget request, new;
+{
+    ColorScreenWidget cw = (ColorScreenWidget) new;
+    register unsigned char *s;
+    register int i;
+
+    Cw_cursor_state = 0;	/* not visible */
+    Cw_cursor_x = 0;
+    Cw_cursor_y = 0;
+
+    Cw_current_font = 0;
+
+    /*
+     * Use the scalable font at its initial size if we can; otherwise
+     * keep the fixed "font" resource and text will not scale.
+     */
+    Cw_cur_font_px = 0;
+    if (Cw_font_size < MIN_FONT_PX) Cw_font_size = MIN_FONT_PX;
+    if (Cw_font_size > MAX_FONT_PX) Cw_font_size = MAX_FONT_PX;
+    if (ValidFontPattern(Cw_scalable_font)) {
+      XFontStruct *fs = LoadScaledFont(cw, Cw_font_size);
+      if (fs != NULL) {
+	Cw_default_font = fs;
+	Cw_cur_font_px = Cw_font_size;
+      }
+    }
+    if (Cw_cur_font_px == 0 && Cw_scalable_font && *Cw_scalable_font)
+      XtWarning("scalableFont not usable; text will not scale with window");
+
+    SetTextWidthAndHeight(cw);	/* sets core sizes */
+
+    Cw_modeline =  (unsigned char *) XtMalloc( MAX_COLUMNS );
+
+    if (!Cw_back_pixmap){
+      Cw_bpixmap = NULL;
+    }  
+
+    Cw_init = NULL;
+    Cw_next_field = NULL;
+
+    s = Cw_modeline;
+    for (i = 0; i < MAX_COLUMNS; i++)
+      *s++ = Cw_defaultChar;
+}
+
+/*  update rapide */
+
+ int  us_start_row = 255 , us_start_col = 0;
+ int  us_stop_row = 255, us_stop_col = 0;
+
+extern void update_screen()
+
+
+{
+ int curr_color, color_value;
+ int cur, endline, len;
+ unsigned char string[132],st[132];
+ int i;
+ int Row, Col;
+ unsigned long attr,color;
+ unsigned int cs;
+ extern ColorScreenWidget screen_widget;
+#define COL_TO_X(c) ((int)Cw_x_margin + (c) * (int)Cw_char_width)
+#define ROW_TO_Y(r) ((int)CURRFONTSTR(cw)->max_bounds.ascent + \
+     (int)Cw_y_margin + (r) * ((int)Cw_linespacing \
+       + (int)Cw_char_height))
+
+
+ if ((us_start_col <= us_stop_col) & (us_start_row <= us_stop_row)) {
+
+ ColorScreenWidget cw = (ColorScreenWidget) screen_widget;
+
+ (*Cw_init)(us_start_col, us_start_row, us_stop_col, us_stop_row);
+
+ while ((len = (*Cw_next_field)(&Col, &Row, string, &attr, &curr_color)) > 0){
+   cs = Cw_cursor_state;
+   Cw_cursor_state &= ~CURSOR_VISIBLE; /* temporarily turn off cursor */
+   XawColScrCursorOff(cw);
+
+   if (attr & SATTR_COLORMASK) {
+	 color_value = attr & SATTR_COLORMASK;
+   }
+   else {
+	   color_value = curr_color;
+	 }
+
+  if (attr & SATTR_D_REVERSE) {
+      XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_background);
+      XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]);
+    } else {
+      XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]);
+      XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_background);
+	   }
+   for (i=0;i<len;i++) st[i]=trfont[string[i]];
+    if (!(attr & SATTR_ATTRIB))
+    XDrawImageString(XtDisplay(screen_widget),
+		     XtWindow(screen_widget), Cw_text_gc,
+		     COL_TO_X(Col),
+		     ROW_TO_Y(Row), st, len);
+    }
+
+    cs = Cw_cursor_state;
+ /*   if (Cw_cursor_state & CURSOR_VISIBLE)  */
+    XawColScrCursorOn(cw);      /* turn on if needed */
+
+ us_start_col = 255;
+ us_stop_col  = 0;
+ us_start_row = 255;
+ us_stop_row = 0;
+}
+}
+
+
+
+int deferred_update=FALSE;
+static int first=0;
+
+/* Initialize */
+static
+void Redisplay(w, event,region)
+     Widget w;
+     XExposeEvent *event;
+     Region region;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) w;
+ 
+  int bound_start, bound_start_row, bound_start_col;
+  int bound_stop, bound_stop_row, bound_stop_col;
+  int cur, endline, len;
+  int my_n, xx, xxx, yy, yyy;
+  unsigned int cs;
+
+  register int i,j,c,x,y;
+  unsigned long  lastattr = 0;
+  int curr_color, color_value;
+
+  unsigned char string[132],st[132];  /* worst case */
+
+  int Row, Col;
+  unsigned long attr,color;
+  
+
+#define ADDR_TO_ROW(adr) ((adr) / (int)Cw_columns)
+#define ADDR_TO_COL(adr) ((adr) % (int)Cw_columns)
+#define COL_TO_X(c) ((int)Cw_x_margin + (c) * (int)Cw_char_width)
+#define ROW_TO_Y(r) ((int)CURRFONTSTR(cw)->max_bounds.ascent + \
+		     (int)Cw_y_margin + (r) * ((int)Cw_linespacing \
+						     + (int)Cw_char_height))
+
+#define X_TO_COL(x) (((x) - (int)Cw_x_margin) / (int)Cw_char_width)
+#define Y_TO_ROW(y) (((y) - (int)CURRFONTSTR(cw)->max_bounds.ascent - \
+		      (int)Cw_y_margin) \
+		     / ((int)Cw_linespacing + (int)Cw_char_height))
+
+#define ROW_COL_TO_ADDR(row,col) ((row) * (int)Cw_columns + (col))
+
+
+  DBUG_PRINT("expose",(" x: %i  y: %i  w: %i  h: %i", event->x, event->y, event->width, event->height));
+
+  bound_start_col = max(X_TO_COL(event->x) - 1, 0);
+  bound_start_row = max(Y_TO_ROW(event->y) - 1, 0);
+  bound_stop_col  = min(X_TO_COL(event->x + event->width) + 1, Cw_columns);
+  bound_stop_row  = min(Y_TO_ROW(event->y + event->height) + 1, Cw_lines);
+  bound_start = ROW_COL_TO_ADDR(bound_start_row, bound_start_col);
+  bound_stop  = min(ROW_COL_TO_ADDR(bound_stop_row, bound_stop_col), Cw_lines * Cw_columns);  
+
+  DBUG_PRINT("expose",("start:%d  stop:%d ", bound_start, bound_stop));
+  DBUG_PRINT("expose",("start_row:%d  stop_row:%d ", bound_start_row, bound_stop_row));
+
+  cs = Cw_cursor_state;
+  Cw_cursor_state &= ~CURSOR_VISIBLE; /* temporarily turn off cursor */
+  XawColScrCursorOff(cw);
+
+#if 0
+  if (Cw_back_pixmap){
+    XCopyArea(XtDisplay(cw), Cw_bpixmap, XtWindow(w), Cw_graph_gc,
+	      0, 0, Cw_width, Cw_height, 0, 0);
+  }
+
+#endif
+
+  if (Cw_init != NULL) 
+    {
+  
+      XClearArea(XtDisplay(cw), XtWindow(cw), event->x, event->y,
+		 event->width, event->height, FALSE);
+
+      (*Cw_init)(bound_start_col, bound_start_row, bound_stop_col, bound_stop_row);
+
+      while ((len = (*Cw_next_field)(&Col, &Row, string, &attr, &curr_color)) > 0){
+	/* curr_color = convcol(attr) & SATTR_COLORMASK; */
+
+	if (attr & SATTR_COLORMASK) {
+	  color_value = attr & SATTR_COLORMASK;
+	}
+	else {
+	  color_value = curr_color;
+	}
+
+	if (attr & SATTR_D_REVERSE) {
+	  XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_background);
+	  XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]); 
+	} else {
+	  XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]); 
+	  XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_background);
+	}
+   for (i=0;i<len;i++) st[i]=trfont[string[i]];
+	if (!(attr & SATTR_ATTRIB))
+	XDrawImageString(XtDisplay(w), XtWindow(w), Cw_text_gc,
+			 COL_TO_X(Col),
+			 ROW_TO_Y(Row), st, len);
+    }
+  }
+  /* Redisplay the cursor if it was visible */
+
+  Cw_cursor_state = cs;         /* restore cursor state */
+  
+  if (Cw_cursor_state & CURSOR_VISIBLE)
+    XawColScrCursorOn(cw);	/* turn on if needed */
+
+
+  /*
+   *	Draw the separator line.
+   */
+  XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_ibm_blue);
+/*  XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_background); */
+ 
+   XDrawLine( XtDisplay(cw), XtWindow(w), Cw_text_gc, 
+	    Cw_internalWidth, Cw_sep_line_y, 
+	    Cw_width - Cw_internalWidth, Cw_sep_line_y); 
+  /*  
+   *	Now the modeline. Just centered.
+   */
+
+
+ /* XDrawImageString( XtDisplay(w), XtWindow(w), 
+	   Cw_mode_gc,
+	   Cw_mode_x,Cw_mode_y,Cw_modeline,Cw_columns); on travaille avec des pixmaps PV */
+ XawCsModeSetString(cw,0,Cw_modeline,Cw_columns);
+
+#if 0
+
+/* draws for the first time a test pattern then copy backuppixmap to window */
+
+
+    if(!first){
+      first ++;
+      XSetForeground(XtDisplay(cw),Cw_graph_gc, Cw_ibm_red);
+      for (xxx = 10, yy = 0; xxx < 200; xxx+=10, yy+=10){
+	XawDrawLine(w, 0, yy, xxx, 200);
+      }
+
+      XSetForeground(XtDisplay(cw),Cw_graph_gc, Cw_ibm_green);
+      for (xxx = 210, yy = 0; xxx < 680; xxx+=10, yy+=10){
+	XawDrawLine(w, 200 , yy, xxx, 200);
+      }
+    }else{
+      if (Cw_back_pixmap){
+	XCopyArea(XtDisplay(cw), Cw_bpixmap, XtWindow(w), Cw_graph_gc, 
+		  0, 0, Cw_width, Cw_height, 0, 0);
+      } 
+    }
+  
+#endif
+ 
+
+
+
+}
+
+
+/*
+ * we need the widget window before we can XCreateGC().
+ */
+static void Realize(w, valueMask, attributes)
+     register Widget w;
+     Mask *valueMask;
+     XSetWindowAttributes *attributes;
+{
+  
+  ColorScreenWidget cw = (ColorScreenWidget) w;
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  unsigned long mask;
+  int i;
+/*  on demande le backing store ici   PV  */
+  attributes->backing_store=Always;
+  *valueMask |= CWBackingStore;
+  (*superclass->core_class.realize)(w, valueMask, attributes);
+  Cw_text_gc = XCreateGC( XtDisplay(cw), XtWindow(cw), 0, 0);
+  Cw_graph_gc = XCreateGC( XtDisplay(cw), XtWindow(cw), 0, 0); 
+  Cw_cursor_gc = XCreateGC( XtDisplay(cw), XtWindow(cw), 0, 0); 
+  Cw_cursor_color = -1;
+  Cw_mode_gc = XCreateGC( XtDisplay(cw), XtWindow(cw), 0, 0); 
+
+  XSetFont( XtDisplay(cw),Cw_text_gc , fs->fid);
+
+  XSetBackground(XtDisplay(cw), Cw_mode_gc, Cw_background);
+  XSetForeground(XtDisplay(cw), Cw_mode_gc, Cw_colors[BLUE]);
+  /* XSetFont( XtDisplay(cw), Cw_mode_gc , Cw_mode_font->fid); suppression de la mode fonte PV */
+  XSetFont( XtDisplay(cw), Cw_mode_gc , fs->fid);
+
+#if 0 /* works, white */
+  XSetBackground(XtDisplay(cw), Cw_cursor_gc,  0); 
+  XSetForeground(XtDisplay(cw), Cw_cursor_gc, 0xffffffff); 
+  XSetFunction(XtDisplay(cw), Cw_cursor_gc, GXxor);
+
+  mask = BlackPixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw))) ^
+         WhitePixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw)));
+			       
+  XSetPlaneMask(XtDisplay(cw), Cw_cursor_gc, mask);
+#endif
+
+  XSetBackground(XtDisplay(cw), Cw_cursor_gc,  0); 
+  XSetForeground(XtDisplay(cw), Cw_cursor_gc, Cw_colors[DEFAULT_COLOR] ^ 
+		 BlackPixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw))));
+  XSetFunction(XtDisplay(cw), Cw_cursor_gc, GXxor );
+
+  mask = BlackPixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw))) |
+         Cw_colors[DEFAULT_COLOR];
+
+			       
+  XSetPlaneMask(XtDisplay(cw), Cw_cursor_gc, mask);
+
+  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXcopy); /* FIXME was GXor????-mah */
+                                                    /* !! XCopyArea : TEXT + GRAPHICS !! */
+
+/*  initialisation des Pixmaps de la status area  */
+
+for (i=0;i<30;i++)
+ ibm_pix[i] = XCreateBitmapFromData(XtDisplay(cw), XtWindow(cw), ibm_bits[i],
+ ibm_width, ibm_height); 
+
+
+  if (Cw_back_pixmap){
+    Cw_bpixmap = XCreatePixmap(XtDisplay(cw), 
+			       RootWindowOfScreen(XtScreen(cw)), 
+			       Cw_width, Cw_height, /* too large, just for testing */
+			       cw->core.depth);
+    XFillRectangle(XtDisplay(cw), Cw_bpixmap, Cw_graph_gc, 0, 0, Cw_width, Cw_height);
+  }else{
+    Cw_bpixmap = NULL;
+
+  }
+  
+  XSetLineAttributes(XtDisplay(cw), Cw_text_gc, 
+		     Cw_sepLineWidth,LineSolid,
+		     CapButt, JoinMiter);
+
+  XSetForeground(XtDisplay(cw), Cw_graph_gc, Cw_colors[DEFAULT_COLOR]);
+  XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillSolid);
+  XSetFillRule(XtDisplay(cw), Cw_graph_gc, EvenOddRule);
+}
+     
+
+static void Resize(w)
+    Widget w;
+{
+    ColorScreenWidget cw = (ColorScreenWidget)w;
+
+    /*
+     * The parent has already set our new core width/height.  The old
+     * code recomputed them from the font here, snapping the widget
+     * back to its original size; now we keep the size we were given
+     * and pick a font to fill it.
+     */
+    if (Cw_cur_font_px)
+      FitFontToWindow(cw);
+    ComputeLayout(cw);
+
+    if (!XtIsRealized(w))
+      return;
+
+    /* backup pixmap must cover the new window size */
+    if (Cw_back_pixmap && Cw_bpixmap) {
+      XFreePixmap(XtDisplay(cw), Cw_bpixmap);
+      Cw_bpixmap = XCreatePixmap(XtDisplay(cw),
+				 RootWindowOfScreen(XtScreen(cw)),
+				 Cw_width, Cw_height, cw->core.depth);
+      XFillRectangle(XtDisplay(cw), Cw_bpixmap, Cw_graph_gc,
+		     0, 0, Cw_width, Cw_height);
+    }
+
+    /*
+     * Everything moved: wipe the window and let the Expose events
+     * redraw it.  The XOR cursor is gone with the clear, so mark it
+     * undisplayed or the next toggle would draw it inverted.
+     */
+    Cw_cursor_state &= ~CURSOR_DISPLAYED;
+    Cw_cursor_color = -1;
+    XClearArea(XtDisplay(cw), XtWindow(cw), 0, 0, 0, 0, True);
+}
+
+/*
+ * Set specified arguments into widget
+ */
+static Boolean SetValues(current, request, new, args, num_args)
+    Widget current, request, new;
+    ArgList args;
+    Cardinal *num_args;
+{
+    ColorScreenWidget curcw = (ColorScreenWidget) current;
+    ColorScreenWidget reqcw = (ColorScreenWidget) request;
+    ColorScreenWidget newcw = (ColorScreenWidget) new;
+
+
+    SetTextWidthAndHeight(new);	/* just in case */
+
+    return TRUE;		/* always redisplay  */
+}
+
+static void Destroy(w)
+    Widget w;
+{
+    ColorScreenWidget cw = (ColorScreenWidget)w;
+
+    XFreeGC (XtDisplay(w), Cw_text_gc);
+    XFreeGC (XtDisplay(w), Cw_graph_gc);
+    XFreeGC (XtDisplay(w), Cw_cursor_gc);
+    XtFree (Cw_modeline);
+}
+
+
+static XtGeometryResult QueryGeometry(w, intended, preferred)
+    Widget w;
+    XtWidgetGeometry *intended, *preferred;
+{
+    register ColorScreenWidget cw = (ColorScreenWidget)w;
+
+    preferred->request_mode = CWWidth | CWHeight;
+    preferred->width = Cw_width;
+    preferred->height = Cw_height;
+    if (  ((intended->request_mode & (CWWidth | CWHeight))
+	   	== (CWWidth | CWHeight)) &&
+	  intended->width == preferred->width &&
+	  intended->height == preferred->height)
+	return XtGeometryYes;
+    else if (preferred->width == w->core.width &&
+	     preferred->height == w->core.height)
+	return XtGeometryNo;
+    else
+	return XtGeometryAlmost;
+}
+
+
+void XawDrawLine(w, x1, y1, x2, y2)
+     Widget w;
+     int    x1, y1, x2, y2;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+  
+     if (Cw_back_pixmap != NULL){
+       XDrawLine(XtDisplay(cw), Cw_bpixmap, Cw_graph_gc, x1, y1, x2, y2);
+     }
+     XDrawLine(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, x1, y1, x2, y2);
+}
+
+/*
+void XawDrawLinesR(w, ps, n) 
+     Widget w;
+     XPoint *ps;
+     int    n;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+     if (Cw_back_pixmap != NULL){
+       XDrawLines(XtDisplay(cw), Cw_bpixmap, Cw_graph_gc, ps, n, CoordModePrevious);
+     }
+     XDrawLines(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, ps, n, CoordModePrevious);
+
+
+}
+
+*/
+
+
+void XawDrawLines(w, ps, n) 
+     Widget w;
+     XPoint *ps;
+     int    n;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+/*     extern int (*XDrawPoints)();
+     extern int (*XDrawLines)(); */
+     int (*function)();
+     if ((n == 2) && (ps[0].x == ps[1].x) && (ps[0].y == ps[1].y)){
+  /*      function = XDrawPoints;   */
+	n--;
+      }
+     else {
+  /*      function = XDrawLines;    */
+     }
+     
+     if (Cw_back_pixmap != NULL){
+ XDrawLines(XtDisplay(cw), Cw_bpixmap, Cw_graph_gc, ps, n, CoordModeOrigin);
+     }
+ XDrawLines(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, ps, n, CoordModeOrigin);
+}
+
+void XawColScrSet(w, initp, nextp)
+     Widget w;
+     int (*initp)();
+     int (*nextp)();
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+  
+     Cw_init = initp;
+     Cw_next_field = nextp;
+  
+}
+
+void XawColScrClear(w)
+     Widget w;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+  
+     XClearArea(XtDisplay(cw), XtWindow(cw), 0,0, 
+		Cw_width, Cw_sep_line_y, FALSE);
+     Cw_cursor_state &= ~CURSOR_DISPLAYED;
+     Cw_cursor_color = -1;	/* invalidate cursor color */
+}
+
+void XawColScrSize(w, row, col)
+     Widget w;
+     int *row;
+     int *col;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;     
+  
+     *row = Cw_lines;
+     *col = Cw_columns;
+  
+}
+
+void XawColScrDrawString(w, row, col, string, len, attr,curr_color)
+     Widget w;
+     int row;
+     int col;
+     unsigned char string[];
+     int len;
+     Attr attr;
+     int curr_color;
+{
+  char st[4096];
+  int i;
+  ColorScreenWidget cw = (ColorScreenWidget) w;
+/*  int curr_color = convcol(attr) & SATTR_COLORMASK; */
+
+    int color_value;
+
+  if (attr & SATTR_COLORMASK) {
+    color_value = attr & SATTR_COLORMASK;
+  }
+  else {
+    color_value = curr_color;
+  }
+
+  if (attr & SATTR_D_REVERSE) {
+    XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_background);
+    XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]); 
+  } else {
+    XSetForeground(XtDisplay(cw), Cw_text_gc, Cw_colors[color_value]); 
+    XSetBackground(XtDisplay(cw), Cw_text_gc, Cw_background);
+  }
+  
+   for (i=0;i<len;i++) st[i]=trfont[string[i]];
+  XDrawImageString(XtDisplay(cw), XtWindow(cw), Cw_text_gc, 
+		   COL_TO_X(col), ROW_TO_Y(row), st, len);
+
+}
+
+void XawColScrRefresh(w, x, y, xx, yy)
+     Widget w;
+     int x,y,xx,yy;
+{
+  
+  XExposeEvent ev,*event = &ev;
+  
+
+  ColorScreenWidget cw = (ColorScreenWidget) w;
+
+  event->x = COL_TO_X(x);
+  event->y = ROW_TO_Y(y);
+  event->width = COL_TO_X(xx) - COL_TO_X(x);
+  event->height = ROW_TO_Y(yy) - ROW_TO_Y(y);
+
+  Redisplay(cw, event, NULL);	/* Region == NULL, dubious FIXME */
+
+}
+
+void 
+XawColScrCursorMove(w,x,y,color)
+     Widget w;
+     int x,y;
+
+     /* unsigned long attribute;     */
+     int color;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;
+     int mask;
+     Bool cursor_moved;
+     Bool color_changed;
+     Bool is_visible;
+#ifdef CDEBUG
+     fprintf(stderr,"CURSOR MOVE color=%d x=%d y=%d oldx=%d oldy=%d, state = 0x%x\n",
+	     color,x,y,Cw_cursor_x, Cw_cursor_y,Cw_cursor_state);
+#endif
+     cursor_moved =  ((x != Cw_cursor_x) ||	
+	 (y != Cw_cursor_y));
+
+     color_changed = (color != Cw_cursor_color);
+
+     is_visible = Cw_cursor_state & CURSOR_VISIBLE;
+
+#ifdef CDEBUG
+     fprintf(stderr,"CURSOR MOVE old color=%d new color=%d %svisible\n",
+	     Cw_cursor_color,color,
+	     Cw_cursor_state & CURSOR_VISIBLE ? "" :"in") ;
+#endif
+
+     if (is_visible  && (cursor_moved || color_changed))
+       {
+	 XawColScrCursorOff(cw);   /* erase old cursor */
+	 Cw_cursor_x = x;	
+	 Cw_cursor_y = y;
+       }
+
+     /* recolor cursor GC if necessary, even if invisible */
+     if (color_changed)
+       {
+	 XSetForeground(XtDisplay(cw), Cw_cursor_gc, 
+			Cw_colors[color] ^ 
+			BlackPixel(XtDisplay(cw), 
+				   DefaultScreen(XtDisplay(cw))));
+	 XSetFunction(XtDisplay(cw), Cw_cursor_gc, GXxor );
+	 
+	 mask = BlackPixel(XtDisplay(cw), 
+			   DefaultScreen(XtDisplay(cw))) |
+			     Cw_colors[color];
+	 XSetPlaneMask(XtDisplay(cw), Cw_cursor_gc, mask);
+	 Cw_cursor_color = color;
+       }
+
+     /* cursor turned off, 
+      * GC has new color
+      * updated to new position
+      */
+     if (is_visible)
+       {
+       	 XawColScrCursorOn(cw);	   /* now draw at new position
+				    * maybe with a new color
+				    */
+       }
+     else
+       {			   /* just update position  */
+	 Cw_cursor_x = x;	
+	 Cw_cursor_y = y;
+       }
+}
+
+XawColScrInvertCursor(wd)
+     Widget wd;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) wd;
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  int x0,y0,w,h;
+
+#ifdef CDEBUG  
+  fprintf(stderr,"INVERT CURSOR, state = 0x%x\n",Cw_cursor_state);
+#endif
+  
+  /* now actually draw cursor 
+   * XDrawRectangle will invert (function == GXxor) 
+   */
+  if (Cw_block_cursor)
+    {
+      x0 = COL_TO_X(Cw_cursor_x);
+      y0 = ROW_TO_Y(Cw_cursor_y) -  fs->max_bounds.ascent;
+      w  = fs->max_bounds.width;
+      h  = fs->max_bounds.ascent + fs->max_bounds.descent;
+    }
+  else
+    {
+      x0 = COL_TO_X(Cw_cursor_x);
+      y0 = ROW_TO_Y(Cw_cursor_y) + 2;
+      w  = fs->max_bounds.width - 1;
+      /* underline thickens with the font: 1px at 13px, 3px at ~36px */
+      h  = max(1, (int)Cw_char_height / 12);
+    }
+  XFillRectangle( XtDisplay(cw), XtWindow(cw), Cw_cursor_gc, 
+		 x0, y0, w, h);
+}
+
+XawColScrCursorOff(wd)
+Widget wd;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) wd;
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  int x0,y0,w,h;
+
+#ifdef CDEBUG
+  fprintf(stderr,"CURSOR OFF , state = 0x%x\n",Cw_cursor_state);
+#endif
+  Cw_cursor_state &= ~CURSOR_VISIBLE; 
+
+  if (Cw_cursor_state & CURSOR_DISPLAYED)     /* actually visible on screen */
+    {
+      Cw_cursor_state |= CURSOR_BLINKING_BLOCKED; /* block timer updates */
+      XawColScrInvertCursor(cw);
+
+      /* remember cursor not on screen,
+       * unblock timer updates 
+       */
+      Cw_cursor_state &= ~(CURSOR_DISPLAYED|CURSOR_BLINKING_BLOCKED);
+    }
+}
+
+
+XawColScrCursorOn(wd)
+Widget wd;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) wd;
+  register XFontStruct	*fs = CURRFONTSTR(cw);
+  int x0,y0,w,h;
+
+#ifdef CDEBUG
+  fprintf(stderr,"CURSOR ON , state = 0x%x\n",Cw_cursor_state);
+#endif
+
+  Cw_cursor_state |= CURSOR_VISIBLE; /* visibility wanted from now on */
+  
+  if (!(Cw_cursor_state & CURSOR_DISPLAYED))      /* if not on screen, */
+    {
+      Cw_cursor_state |= CURSOR_BLINKING_BLOCKED; /* block timer updates */
+      XawColScrInvertCursor(cw);
+      Cw_cursor_state |= CURSOR_DISPLAYED;         /* it's there now */
+      Cw_cursor_state &= ~CURSOR_BLINKING_BLOCKED; /* unblock timer updates */
+    }
+}
+
+static void
+time_to_blink(client_data, id)
+caddr_t client_data;
+XtIntervalId *id;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) client_data;
+  
+  if ((!(Cw_cursor_state & CURSOR_BLINKING_BLOCKED)) &&
+      (Cw_cursor_state & CURSOR_VISIBLE)) /* cursor enabled */
+    {			/* ok to invert cursor */
+      XawColScrInvertCursor(cw);
+      Cw_cursor_state ^= CURSOR_DISPLAYED;
+    }
+  if (Cw_blinking_cursor)    /* reload timer */
+    Cw_blink_interval_id = 
+      XtAppAddTimeOut(XtWidgetToApplicationContext(cw),
+		      Cw_blink_duration, time_to_blink,
+		      (caddr_t) cw);
+}
+
+XawColScrBlinkCursor(w,blinking)
+   Widget w;
+   Boolean blinking;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;
+
+
+     if (blinking) 
+       {
+	 if (!Cw_blinking_cursor) /* not yet turned on */
+	   {
+	     /* register timer event */
+
+	     Cw_blink_interval_id =
+	       XtAppAddTimeOut(XtWidgetToApplicationContext(cw),
+			       Cw_blink_duration,
+			       time_to_blink, (caddr_t) cw);
+	     Cw_blinking_cursor = TRUE;
+	   }
+	 /* else: already was turned on, ignore */
+       }
+     else			/* turn off blinking */
+       {
+	 if (Cw_blinking_cursor)
+	   {
+	     /* de-register timer event */
+	     XtRemoveTimeOut(Cw_blink_interval_id);
+
+	     /* if we just were in a cursor-off period, and a cursor
+	      * is wanted, turn it back on
+	      */
+	     if ((Cw_cursor_state & CURSOR_VISIBLE) &&
+		 !(Cw_cursor_state & CURSOR_DISPLAYED))
+	       {
+		 XawColScrCursorOn(cw);
+	       }
+	   }
+	 /* else: no timeout handler set up, ignore. */
+	 Cw_blinking_cursor = FALSE;
+       }
+}
+
+
+XawColScrAltCursor(w,alt_cursor)
+   Widget w;
+   Boolean alt_cursor;
+{
+     ColorScreenWidget cw = (ColorScreenWidget) w;
+
+
+     if (alt_cursor != Cw_block_cursor)
+       {
+	 XawColScrCursorOff(w);
+	 Cw_block_cursor = alt_cursor;
+	 XawColScrCursorOn(w);
+       }
+}
+
+
+
+
+void
+XawSetGraphColor(w, cc)
+     Widget w;
+     Byte cc;
+{
+     int c;
+     ColorScreenWidget cw = (ColorScreenWidget) w;
+
+     c = cc;
+     courcol=c;
+     XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[c]);
+     XSetForeground(XtDisplay(cw), Cw_text_gc,  cw->colorScreen.colors[c]);
+
+}
+  
+void
+set_arrow_cursor(w)
+     Widget w;
+{
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+   XDefineCursor(XtDisplay(cw), XtWindow(cw),XCreateFontCursor(XtDisplay(cw),XC_left_ptr));
+   graphic_cursor = FALSE;
+}
+void
+set_cross_cursor(w)
+     Widget w;
+{
+
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+   XDefineCursor(XtDisplay(cw), XtWindow(cw),XCreateFontCursor(XtDisplay(cw),XC_crosshair));
+   graphic_cursor = TRUE;
+}
+
+
+void XawCreatePixmap(w,pat_data,j)
+     Widget w;
+     char pat_data[];
+     int j;
+{
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+    if (pat_pixmap[pat_col][j] != 0)
+       XFreePixmap(XtDisplay(cw),pat_pixmap[pat_col][j]);
+
+    pat_pixmap[pat_col][j] = XCreateBitmapFromData(XtDisplay(cw), XtWindow(cw),
+    pat_data,pat_width,pat_height);
+}
+
+void
+XawFillArea(w, p, n)
+     Widget w;
+     XPoint *p;
+     int n;
+{
+     int pat_wo,i;
+     Pixmap pattern_pix;
+     char pat_loc[1000];
+     XGCValues pattern_value;
+     GC pat_gc;
+   
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+ if(pat_col==0 ||  Pattern_Sym < 0x41) { 
+  XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);}
+ else {
+
+/*  case of multicolor patterns */
+
+/*  couleur 1 */
+        if (pat_pixmap[1][Pattern_Sym] == 0) return;
+   	XSetStipple(XtDisplay(cw), Cw_graph_gc, pat_pixmap[1][Pattern_Sym]);
+   	XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled); 
+      XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[1]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 2 */
+        if (pat_pixmap[2][Pattern_Sym] == 0) return;
+   	XSetStipple(XtDisplay(cw), Cw_graph_gc, pat_pixmap[2][Pattern_Sym]);
+   	XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+     XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[2]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 4 */
+        if (pat_pixmap[4][Pattern_Sym] == 0) return;
+   	XSetStipple(XtDisplay(cw), Cw_graph_gc, pat_pixmap[4][Pattern_Sym]);
+   	XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+     XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[4]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 3 */ /* create combined pixmap of 1 and 2 */
+   pattern_pix = XCreatePixmap(XtDisplay(cw),XtWindow(cw),pat_width,pat_height,1);
+   pat_gc=XCreateGC(XtDisplay(cw), pattern_pix, NULL, &pattern_value);
+   XCopyArea(XtDisplay(cw),pat_pixmap[1][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFunction(XtDisplay(cw),pat_gc,GXand);
+   XCopyArea(XtDisplay(cw),pat_pixmap[2][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+   XSetStipple(XtDisplay(cw), Cw_graph_gc, pattern_pix);
+   XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[3]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 5 */
+   XSetFunction(XtDisplay(cw),pat_gc,GXcopy);
+   XCopyArea(XtDisplay(cw),pat_pixmap[1][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFunction(XtDisplay(cw),pat_gc,GXand);
+   XCopyArea(XtDisplay(cw),pat_pixmap[4][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+   XSetStipple(XtDisplay(cw), Cw_graph_gc, pattern_pix);
+   XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[5]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 6 */
+   XSetFunction(XtDisplay(cw),pat_gc,GXcopy);
+   XCopyArea(XtDisplay(cw),pat_pixmap[2][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFunction(XtDisplay(cw),pat_gc,GXand);
+   XCopyArea(XtDisplay(cw),pat_pixmap[4][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+   XSetStipple(XtDisplay(cw), Cw_graph_gc, pattern_pix);
+   XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[6]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+/*  couleur 7 */
+   XSetFunction(XtDisplay(cw),pat_gc,GXcopy);
+   XCopyArea(XtDisplay(cw),pat_pixmap[1][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFunction(XtDisplay(cw),pat_gc,GXand);
+   XCopyArea(XtDisplay(cw),pat_pixmap[2][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XCopyArea(XtDisplay(cw),pat_pixmap[4][Pattern_Sym],pattern_pix,pat_gc,
+          0, 0, pat_width, pat_height,0,0);
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+   XSetStipple(XtDisplay(cw), Cw_graph_gc, pattern_pix);
+   XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[7]);
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModeOrigin);
+
+   XFreePixmap(XtDisplay(cw),pattern_pix);
+   XFreeGC(XtDisplay(cw),pat_gc);
+
+
+     XSetForeground(XtDisplay(cw), Cw_graph_gc, cw->colorScreen.colors[courcol]);
+}
+}
+
+void
+XawFillAreaR(w, p, n)
+     Widget w;
+     XPoint *p;
+     int n;
+{
+
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+  
+   XFillPolygon(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, p, n, Complex, CoordModePrevious);
+
+}
+ 
+
+void 
+XawSetLineType(w, tt)
+     Widget w;
+     Byte tt;
+
+{
+   int t;
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   unsigned long valuemask;
+   XGCValues values;
+
+   t = tt;
+   valuemask = GCLineStyle;
+	     
+   switch(t){
+      case 0: 
+        values.line_style = LineSolid;
+	break;
+      case 1: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, dot, 2);
+	break;
+      case 2: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, short_dash, 2);
+	break;
+      case 3: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, dash_dot, 4);
+	break;
+      case 4: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, double_dot, 4);
+	break;
+      case 5: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, long_dash, 2);
+	break;
+      case 6: 
+	values.line_style = LineOnOffDash;
+	XSetDashes(XtDisplay(cw), Cw_graph_gc, 0, dash_double_dot, 6);
+	break;
+      case 7: 
+	values.line_style = LineSolid;
+	break;
+      case 8: 
+	fprintf(stderr, "LINE INVISIBLE ??? \n");
+	return;
+      default: 
+	fprintf(stderr,"unknown Line Type \n");
+	return;
+    }
+    XChangeGC(XtDisplay(cw), Cw_graph_gc, valuemask, &values);
+
+}
+
+
+void 
+XawSetLineWidth(w, tt)
+     Widget w;
+     Byte tt;
+
+{
+   int t;
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   XGCValues values;
+
+   t = tt ;
+   switch(t){
+   	case 0: 
+          values.line_width = 0;  /* default value */
+	  break;
+     	case 1: 
+	  values.line_width = 1;  /* normal line   */
+	  break;
+	default: 
+  	  values.line_width = Cw_thick_line;  /* thick  line   */
+   }
+   XChangeGC(XtDisplay(cw), Cw_graph_gc, GCLineWidth, &values);
+}
+
+
+void 
+XawSetForegroundMix(w, mm)
+     Widget w;
+     Byte mm;
+
+{
+     int m;
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   m = mm ;
+   switch(m){
+   	case 0:
+          XSetFunction(XtDisplay(cw), Cw_graph_gc, GXcopy);      /* default */
+          break; 
+        case 1: 
+	  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXor);        /* OR */       
+	  break;
+	case 2:
+	  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXcopy);      /* Overpaint */
+	  break;
+	case 3:
+	  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXandReverse); /* Underpaint ? */
+	  break;
+	case 4: 
+	  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXxor);        /* XOR */
+	  break;
+	case 5:
+	  XSetFunction(XtDisplay(cw), Cw_graph_gc, GXcopy);       /* Leave alone ? */
+	  break;
+	default:
+	  ;
+	}
+}
+
+
+void 
+XawSetPatternSym(w, ss)
+     Widget w;
+     Byte ss ;
+
+{
+     int i;
+     int s;
+     int pat_wo;
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+   
+   Pixmap pattern_pix;
+
+   s = ss;
+   Pattern_Sym = s;
+
+     if ((s == 0) || ((s >= 0x0f) && (s < 0x41))) {
+   	XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillSolid);
+   }	
+   else{
+    if ( s < 0x41 ) {
+   	pattern_pix = XCreateBitmapFromData(XtDisplay(cw), XtWindow(cw),
+        pattab[s-1],pattern_width,pattern_height); 
+   	XSetStipple(XtDisplay(cw), Cw_graph_gc, pattern_pix);
+        XFreePixmap(XtDisplay(cw),pattern_pix);}   
+
+    else  {
+        if (pat_pixmap[pat_col][s]==0) return;
+   	XSetStipple(XtDisplay(cw), Cw_graph_gc, pat_pixmap[pat_col][s]);
+   	XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled); 
+          }
+       }
+}
+
+
+
+void 
+XawSetPatternON(w)
+     Widget w;
+{
+   
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillStippled);
+
+}
+
+void 
+XawSetPatternOFF(w)
+     Widget w;
+
+{
+   
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillSolid);
+}
+
+
+
+void 
+XawDrawString(w, x, y, s, l)
+     Widget w;
+     int x, y;
+     unsigned char s[256];
+     int l;
+{
+   int i;
+   char st[256];
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+   for (i=0;i<l;i++) st[i]=trfont[s[i]];
+   XDrawString(XtDisplay(cw), XtWindow(cw), Cw_text_gc, x, y, st, l);  /* ? Color - Cw_text_gc or Cw_graph_gc */
+                                                                      /* !! FONTS used in text_gc            */ 
+}
+
+void
+XawColScrXytoRc(w,x,y,r,c)
+     Widget w;
+     int x,y;
+     int *r,*c;
+
+{
+   
+   ColorScreenWidget cw = (ColorScreenWidget) w;
+
+  *c = X_TO_COL(x);
+  *r = Y_TO_ROW(y);
+}
+
+
+static int pm_w, pm_h;
+static Pixmap pm;
+static GC img_GC;
+static XImage *image;
+
+void
+XawDrawImage(w, id, ic, IX, IY, IW, IH)
+     Widget w;
+     Byte *id;
+     int ic, IX, IY, IW, IH;
+{
+ 
+     ColorScreenWidget cw = (ColorScreenWidget) w;
+
+     if (pm == NULL){
+        pm_w = IW;
+	pm_h = IH;
+        pm = XCreatePixmap(XtDisplay(cw), XtWindow(cw), pm_w, pm_h, 1);
+        img_GC = XCreateGC(XtDisplay(cw), pm, 0, 0);
+     }else {
+        if ((pm_w < IW) || (pm_h < IH)){
+	   XFreePixmap(XtDisplay(cw), pm);
+	   XFreeGC(XtDisplay(cw), img_GC); 
+	   pm_w = IW;
+	   pm_h = IH;
+	   pm = XCreatePixmap(XtDisplay(cw), XtWindow(cw), pm_w, pm_h, 1);
+           img_GC = XCreateGC(XtDisplay(cw), pm, 0, 0);
+	}
+     }
+
+     image = XCreateImage(XtDisplay(cw), 
+			  DefaultVisual(XtDisplay(cw),DefaultScreen(XtDisplay(cw))),
+			  1, XYBitmap, 0, (char *)id, IW, IH, 8, 0);
+
+     image->bitmap_bit_order = MSBFirst;
+     image->byte_order = XImageByteOrder(XtDisplay(cw)); 
+     image->bitmap_unit = 8; 
+
+     XSetForeground(XtDisplay(cw), img_GC, BlackPixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw))));
+     XSetBackground(XtDisplay(cw), img_GC, WhitePixel(XtDisplay(cw), DefaultScreen(XtDisplay(cw))));
+     XFillRectangle(XtDisplay(cw), pm, img_GC, 0, 0, pm_w, pm_h);
+
+
+     XPutImage(XtDisplay(cw), pm, img_GC, image, 0, 0, 0, 0, IW, IH);
+      
+     XSetClipMask(XtDisplay(cw), Cw_graph_gc, pm);
+     XSetClipOrigin(XtDisplay(cw), Cw_graph_gc, IX, IY);
+ 
+     XSetFillStyle(XtDisplay(cw), Cw_graph_gc, FillSolid); /* ??? */
+     XFillRectangle(XtDisplay(cw), XtWindow(cw), Cw_graph_gc, IX, IY, IW, IH);
+ 
+     XDestroyImage(image);
+     XSetClipMask(XtDisplay(cw), Cw_graph_gc, None);
+} 
+

@@ -1,0 +1,6 @@
+# build output
+*.o
+/x3179
+
+# macOS
+.DS_Store
