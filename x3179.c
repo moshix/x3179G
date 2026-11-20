@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>	/* atoi, exit: correct prototypes on 64-bit */
 #include <assert.h>
+#include <string.h>	/* strchr, strrchr: used by split_host_port */
+#include <ctype.h>	/* isdigit */
 
 #include <X11/Intrinsic.h>	
 #include <X11/StringDefs.h>
@@ -187,6 +189,87 @@ extern  int init();
 extern  int next_item();
 
 
+/*
+ * X3179.ad, compiled in.  x3179_ad.h is generated from X3179.ad by
+ * the Makefile and defines builtin_resources[] as one string.
+ */
+#include "x3179_ad.h"
+
+/*
+ * merge_builtin_resources - make X3179.ad the default without
+ * needing XENVIRONMENT.
+ *
+ * Without the resource file the window came up white and the macOS
+ * key bindings were missing.  We parse the built-in copy and merge it
+ * into the display's database with override=False, so it acts like an
+ * app-defaults file: an entry already there (from XENVIRONMENT,
+ * ~/.Xdefaults, xrdb, -xrm or -bg/-fg) is kept, ours only fills gaps.
+ * XrmCombineDatabase consumes builtin, so it is not destroyed here.
+ */
+static void
+merge_builtin_resources(dpy)
+     Display *dpy;
+{
+  XrmDatabase builtin, current;
+
+  builtin = XrmGetStringDatabase(builtin_resources);
+  if (builtin == NULL)
+    return;
+  current = XtDatabase(dpy);
+  XrmCombineDatabase(builtin, &current, False);
+}
+
+/*
+ * split_host_port - let "-host name:port" carry the port as well.
+ *
+ * If app_resources.hostname looks like "name:digits", the hostname is
+ * cut at the colon and the digits become app_resources.portnumber,
+ * overriding any *port resource (the command line is more explicit).
+ * A name with no colon is left alone, so "-host name" plus
+ * "-xrm '*port: N'" keeps working as before.
+ *
+ * Only a single colon is accepted: anything with more than one (an
+ * IPv6 literal) is not split, and gethostbyname() would reject it
+ * anyway.  A bad port ("name:", "name:abc", "name:0", "name:70000")
+ * is a fatal error rather than a silent fallback to the telnet port.
+ */
+static void
+split_host_port()
+{
+  char *name, *colon, *p;
+  long port;
+
+  if (app_resources.hostname == NULL)
+    return;
+
+  colon = strchr(app_resources.hostname, ':');
+  if (colon == NULL || strrchr(app_resources.hostname, ':') != colon)
+    return;
+
+  /* port part must be all digits and in 1..65535 */
+  for (p = colon + 1; *p; p++)
+    if (!isdigit((unsigned char) *p))
+      break;
+  port = (*p == '\0' && p != colon + 1) ? atol(colon + 1) : 0;
+  if (port < 1 || port > 65535)
+    {
+      fprintf(stderr, "%s: bad port in -host \"%s\"\n",
+	      prog_name, app_resources.hostname);
+      exit(1);
+    }
+
+  /*
+   * The resource string belongs to the Xrm database, so copy it
+   * before cutting it at the colon.  The copy is never freed: it
+   * lives as long as app_resources does.
+   */
+  name = XtNewString(app_resources.hostname);
+  name[colon - app_resources.hostname] = '\0';
+  app_resources.hostname = name;
+  app_resources.portnumber = (int) port;
+}
+
+
 main(argc, argv)
      int argc;
      char **argv;
@@ -213,7 +296,9 @@ main(argc, argv)
 toplevel = XtInitialize(NULL,"X3270", options, XtNumber(options),
 	  &argc, argv);
       app_con = XtWidgetToApplicationContext(toplevel);
-  
+
+  merge_builtin_resources(XtDisplay(toplevel));
+
   /*
    * Add string to function bindings for out application actions.
    */
@@ -227,6 +312,8 @@ toplevel = XtInitialize(NULL,"X3270", options, XtNumber(options),
   
   XtGetApplicationResources( toplevel, (XtPointer) &app_resources,
 			    resources, XtNumber(resources), NULL, ZERO );
+
+  split_host_port();		/* "-host name:port" */
 
   if (app_resources.debug != NULL) 
     {

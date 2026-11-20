@@ -8,11 +8,13 @@
 #   4. the window is not blank (the host's screen was painted).
 #
 # Usage: sh tests/smoke.sh [HOST] [PORT]   (default www.moshix.tech 2300)
+# The emulator is started as "x3179 -host HOST:PORT".
 
 HOST=${1:-www.moshix.tech}
 PORT=${2:-2300}
 DISP=:93
-X11BIN=/opt/X11/bin
+# X programs (Xvfb, xwininfo, xwd): XQuartz on macOS, /usr/bin on Linux
+if [ -d /opt/X11/bin ]; then X11BIN=/opt/X11/bin; else X11BIN=/usr/bin; fi
 cd "$(dirname "$0")/.." || exit 1
 
 fail() { echo "FAIL: $*"; cleanup; exit 1; }
@@ -21,9 +23,9 @@ cleanup() {
     [ -n "$XVFB" ] && kill "$XVFB" 2>/dev/null
     rm -f "$SHOT"
 }
-SHOT=$(mktemp -t x3179shot)
+SHOT=$(mktemp "${TMPDIR:-/tmp}/x3179shot.XXXXXX")  # BSD + GNU mktemp
 
-[ -x ./x3179 ] || fail "./x3179 not built (make -f Makefile.macos)"
+[ -x ./x3179 ] || fail "./x3179 not built (run make)"
 
 "$X11BIN/Xvfb" $DISP -screen 0 2560x1600x24 -nolisten tcp >/dev/null 2>&1 &
 XVFB=$!
@@ -34,8 +36,22 @@ until DISPLAY=$DISP "$X11BIN/xwininfo" -root >/dev/null 2>&1; do
     i=$((i + 1)); [ $i -gt 50 ] && fail "Xvfb did not start"; sleep 0.1
 done
 
-DISPLAY=$DISP XENVIRONMENT=$PWD/X3179.ad \
-    ./x3179 -host "$HOST" -xrm "*port: $PORT" >/dev/null 2>&1 &
+# -host with a bad port must exit with an error, not fall back to telnet
+for bad in "$HOST:" "$HOST:abc" "$HOST:0" "$HOST:70000" "$HOST:23x"; do
+    ERR=$(DISPLAY=$DISP ./x3179 -host "$bad" 2>&1 >/dev/null) &&
+        fail "-host $bad was accepted"
+    case $ERR in
+        *"bad port"*) ;;
+        *) fail "-host $bad: unexpected error: $ERR" ;;
+    esac
+done
+echo "ok: -host rejects bad ports"
+
+# connect using the "-host name:port" form.  No XENVIRONMENT: the
+# colours and key bindings must come from the X3179.ad copy built into
+# the binary, so every check below also tests that.
+env -u XENVIRONMENT DISPLAY=$DISP \
+    ./x3179 -host "$HOST:$PORT" >/dev/null 2>&1 &
 EMU=$!
 
 # wait up to 15s for the connection to come up
@@ -66,6 +82,15 @@ DISPLAY=$DISP "$X11BIN/xwd" -silent -id "$WIN" -out "$SHOT" ||
 SIZE=$(gzip -c "$SHOT" | wc -c | tr -d ' ')
 [ "$SIZE" -gt 4000 ] || fail "window looks blank (gzip size $SIZE)"
 echo "ok: screen painted (gzip size $SIZE)"
+
+# background must be black, not Xt's default white.  Measured on the
+# login screen: built-in resources ~356000 black / ~1000 white pixels,
+# without them ~5000 black / ~367000 white.
+BLK=$(python3 -I tests/xwd_bbox.py --count 000000 "$SHOT")
+WHT=$(python3 -I tests/xwd_bbox.py --count ffffff "$SHOT")
+[ "$BLK" -gt $((WHT * 10)) ] ||
+    fail "background not black (black $BLK, white $WHT)"
+echo "ok: black background without XENVIRONMENT"
 
 # --- font scaling: enlarge the window, the text must grow with it ---
 BBOX="python3 -I tests/xwd_bbox.py"

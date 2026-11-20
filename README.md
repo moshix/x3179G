@@ -6,22 +6,36 @@ Administration by Robert Schischka and Michael Haberler, then reworked
 by Pierre Verpeaux.
 
 I got it building and running again on a current Mac (Apple Silicon,
-64-bit) with XQuartz.
+64-bit) with XQuartz, and it builds on 64-bit Linux (amd64) too.
 
 ## Building
 
-You need XQuartz (https://www.xquartz.org). Then:
+    make
 
-    make -f Makefile.macos
+`make` detects the OS. Before building:
 
-The old `Makefile` is the imake output for AIX and won't work here.
+- macOS: install XQuartz (https://www.xquartz.org).
+- Linux (Debian/Ubuntu):
+
+      sudo apt install build-essential pkg-config libxaw7-dev \
+          libxmu-dev libxt-dev libxext-dev libx11-dev
+
+  Fedora: `sudo dnf install gcc make pkgconf libXaw-devel
+  libXmu-devel libXt-devel libXext-devel libX11-devel`
 
 ## Running
 
-    XENVIRONMENT=$PWD/X3179.ad ./x3179 -host moshix.tech -xrm '*port: 2300'
+    ./x3179 -host moshix.tech:2300
 
-`X3179.ad` holds the colours and key bindings. Without it the keyboard
-won't work properly.
+`-host` takes `name:port`. Without a port it uses the telnet port
+(23), or the `*port` resource if you set one with `-xrm '*port: N'`.
+A port in `-host` wins over `*port`.
+
+`X3179.ad` holds the colours (black background) and key bindings. It
+is compiled into the binary, so there is nothing to set up. To change
+a setting, put your own resources in a file and point `XENVIRONMENT`
+at it, or use `-xrm`. Yours take precedence over the built-in ones.
+`-bg` and `-fg` work too.
 
 Resize the window and the text resizes with it. To start with smaller
 or bigger text, add `-xrm '*fontSize: 10'` (the default is 13).
@@ -38,12 +52,16 @@ The rest are in `X3179.ad`.
 
 ## Tests
 
-    make -f Makefile.macos test
+    make test
 
-This starts x3179 on a hidden Xvfb display, connects to moshix.tech
-port 2300, and checks that the screen comes up, that resizing works,
-and that the keys above do what they should. It needs a network
-connection, python3 and xdotool (`brew install xdotool`).
+This starts x3179 on a hidden Xvfb display, checks that `-host`
+rejects bad ports, connects with `-host moshix.tech:2300` (without
+`XENVIRONMENT`), and checks that the screen comes up with a black
+background, that resizing works, and that the keys above do what they
+should. It needs a network
+connection, python3, lsof and xdotool (`brew install xdotool` on
+macOS; on Linux also Xvfb and the X utilities: `sudo apt install
+xvfb x11-utils x11-apps xdotool lsof libxtst6`).
 
 ## What changed from the original
 
@@ -53,13 +71,9 @@ connection, python3 and xdotool (`brew install xdotool`).
 - green block cursor
 - Backspace works
 - Return is newline and Option is Enter
+- `-host name:port` sets the port on the command line
+- `X3179.ad` is built in, so `XENVIRONMENT` is no longer needed
 
-## Quick start: connecting to moshix.tech port 2300
+## Quick start
 
-Start XQuartz, build if needed, then run from the project directory:
-
-    make -f Makefile.macos
-    XENVIRONMENT=$PWD/X3179.ad ./x3179 -host moshix.tech -xrm '*port: 2300'
-
-The port is an X resource (`-xrm '*port: ...'`), not a command-line
-flag. Add `-xrm '*fontSize: 10'` for smaller text at startup.
+    x3179 -host moshix.tech:2300

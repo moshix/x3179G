@@ -3,3 +3,6 @@
 
 # macOS
 .DS_Store
+
+# generated from X3179.ad
+x3179_ad.h

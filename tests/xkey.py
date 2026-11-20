@@ -10,11 +10,21 @@ spare keycode first.
 Usage: xkey.py KEYSYM [KEYSYM ...]     e.g. xkey.py BackSpace Return
 """
 import ctypes
+import os
 import sys
 import time
 
-X11 = ctypes.CDLL("/opt/X11/lib/libX11.dylib")
-XTST = ctypes.CDLL("/opt/X11/lib/libXtst.dylib")
+
+def _load(name):
+    """libX11/libXtst from XQuartz on macOS, else the Linux soname."""
+    mac = "/opt/X11/lib/lib%s.dylib" % name
+    if os.path.exists(mac):
+        return ctypes.CDLL(mac)
+    return ctypes.CDLL("lib%s.so.6" % name)
+
+
+X11 = _load("X11")
+XTST = _load("Xtst")
 
 X11.XOpenDisplay.restype = ctypes.c_void_p
 X11.XOpenDisplay.argtypes = [ctypes.c_char_p]
