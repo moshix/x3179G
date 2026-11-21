@@ -113,7 +113,17 @@ static char ibm_bits[30][24] = {
 #define pattern_height 8
 
 #ifndef FRENCH
-static unsigned char trfont[] = {   /* transcoding table to use ordinary ascii font */
+/*
+ * Screen text: EBCDIC (CP037) -> ISO 8859-1 font glyph.  Filled from
+ * etoa[] (asc_ebc.c) in ClassInitialize, so drawing, copy and paste all
+ * use the one code page table.  The hand-made table below used to do
+ * this job; it followed CP037 except for [ ] ^ }.
+ */
+extern unsigned char etoa[];
+static unsigned char trfont[256];
+
+/* Status line (operator information area) codes - still the old table */
+static unsigned char trcg[] = {   /* transcoding table to use ordinary ascii font */
   32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 0 */
   32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 1 */
   32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 2 */
@@ -158,6 +168,7 @@ static unsigned char trfont[] = {   /* transcoding table to use ordinary ascii f
   32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,    /* 14 */
   32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32     /* 15 */
 };
+#define trcg trfont	/* French build: one table for text and status */
 #endif
 
  static char pattab[15][8] = {
@@ -456,7 +467,7 @@ XawCsModeSetString(cw,pos,s,length)
 
 /*  quand ce sont des vrais caracteres (SYSTEM) il faut les ecrire */
    if (*s < 209 | (*s > 225 &* s <= 233) | (*s == 212)) {
-   for (i=0;i<act_length;i++) st[i]=trfont[*(s+i)];
+   for (i=0;i<act_length;i++) st[i]=trcg[*(s+i)];
 
 XDrawImageString(XtDisplay(cw), XtWindow(cw), Cw_mode_gc,
 		   Cw_mode_x + pos * Cw_default_font->max_bounds.width,
@@ -495,7 +506,15 @@ static void ClassInitialize()
 /*    XawInitializeWidgetSet(); */
 /*XtAddConverter( XtRString, "Widget", XmuCvtStringToWidget,
 		    NULL, 0 );  */
+#ifndef FRENCH
+  {
+    int i;
 
+    /* the font is ISO 8859-1, so a glyph index is the Latin-1 code */
+    for (i = 0; i < 256; i++)
+      trfont[i] = etoa[i];
+  }
+#endif
 } /* ClassInitialize */
 
 
@@ -1860,6 +1879,30 @@ XawColScrXytoRc(w,x,y,r,c)
 
   *c = X_TO_COL(x);
   *r = Y_TO_ROW(y);
+}
+
+/*
+ * The cell under pixel (x,y), for mouse selection.  Y_TO_ROW above
+ * measures from the text baseline, so the upper part of a row maps to the
+ * row before it (callers add 1).  This measures from the top of each row
+ * cell: row r spans y_margin + r*(linespacing+char_height) onwards.
+ * Positions left of / above the text give column / row 0; the caller
+ * clamps the far end to the screen size.
+ */
+void XawColScrXyToCell(w, x, y, r, c)
+     Widget w;
+     int x, y;
+     int *r, *c;
+{
+  ColorScreenWidget cw = (ColorScreenWidget) w;
+  int row_h = (int)Cw_linespacing + (int)Cw_char_height;
+
+  *c = (x - (int)Cw_x_margin) / (int)Cw_char_width;
+  *r = (y - (int)Cw_y_margin) / row_h;
+  if (x < (int)Cw_x_margin)
+    *c = 0;
+  if (y < (int)Cw_y_margin)
+    *r = 0;
 }
 
 

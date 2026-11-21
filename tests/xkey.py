@@ -8,6 +8,8 @@ Mode_switch, which is what XQuartz sends for Option) are bound to a
 spare keycode first.
 
 Usage: xkey.py KEYSYM [KEYSYM ...]     e.g. xkey.py BackSpace Return
+A KEYSYM may be a combination joined by "+", e.g. Control_L+Shift_L+c:
+the keys are pressed in order and released in reverse order.
 """
 import ctypes
 import os
@@ -73,9 +75,11 @@ def main(names):
     if not dpy:
         sys.exit("cannot open display")
     for name in names:
-        kc = keycode_for(dpy, name)
-        XTST.XTestFakeKeyEvent(dpy, kc, 1, 0)   # press
-        XTST.XTestFakeKeyEvent(dpy, kc, 0, 0)   # release
+        kcs = [keycode_for(dpy, part) for part in name.split("+")]
+        for kc in kcs:                          # press, modifiers first
+            XTST.XTestFakeKeyEvent(dpy, kc, 1, 0)
+        for kc in reversed(kcs):                # release
+            XTST.XTestFakeKeyEvent(dpy, kc, 0, 0)
         X11.XSync(dpy, 0)
         time.sleep(0.15)
     X11.XCloseDisplay(dpy)

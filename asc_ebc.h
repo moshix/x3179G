@@ -28,6 +28,7 @@
  */
 
 #define	NASCII	128		/* number of ascii characters */
+#define	NLATIN1	256		/* number of ISO 8859-1 characters */
 
 #define	NEBC	256		/* number of ebcdic characters */
 

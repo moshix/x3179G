@@ -35,6 +35,7 @@ extern void HandleQuit();
 
 extern void HandleKeymapChange();
 extern void HandleInsertSelection();
+extern void HandleCopySelection();
 extern void HandleSelectStart();
 extern void HandleKeyboardSelectStart();
 extern void HandleSelectExtend();

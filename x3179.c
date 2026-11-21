@@ -139,6 +139,7 @@ static XtActionsRec actions[] = {
   { "ignore",           	HandleIgnore },
   { "insert",           	HandleKeyPressed }, 
   { "insert-selection", 	HandleInsertSelection },
+  { "copy-selection",   	HandleCopySelection },
   { "keymap",           	HandleKeymapChange },
   { "popup-menu",       	HandlePopupMenu },
   { "select-start",     	HandleSelectStart },

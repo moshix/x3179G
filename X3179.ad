@@ -35,11 +35,23 @@ x3179*main.orientation:       	vertical
 !                        "Option keys send Alt_L and Alt_R" is enabled.
 !   keypad Enter      -> 3270 Enter as well
 !   BackSpace         -> erase previous character and move back
+!
+! Copy and paste:
+!   drag (button 1)   -> select a rectangle of the screen (PRIMARY)
+!   click (button 1)  -> move the cursor there
+!   Cmd-C, Ctrl+Shift+C            -> copy the selection (CLIPBOARD)
+!   Cmd-V, Ctrl+Shift+V, Shift+Insert -> paste into the input field
+!   middle button     -> paste (PRIMARY, else CLIPBOARD)
 
 !x3179*screen.fromVert:		titlebar
 !       <Key>e:		string(e)\n\
 !       <Key>asciicircum,<Key>e:		string(E)
 x3179*screen.translations:	#override \n\
+	Meta<Key>c:             copy-selection()\n\
+	Meta<Key>v:             insert-selection(CLIPBOARD, PRIMARY)\n\
+	Shift Ctrl<Key>c:       copy-selection()\n\
+	Shift Ctrl<Key>v:       insert-selection(CLIPBOARD, PRIMARY)\n\
+	Shift<Key>Insert:       insert-selection(CLIPBOARD, PRIMARY)\n\
 None<Key>eacute:		string({)\n\
 None<Key>egrave:		string(})\n\
 None<Key>agrave:		string(@)\n\
@@ -99,8 +111,10 @@ None<Key>ccedilla:		string(\\)\n\
  Ctrl<Btn1Down>:        	popup-menu(mainMenu)\n\
  Ctrl<Btn2Down>:        	popup-menu(optionsMenu)\n\
  Ctrl<Btn3Down>:         popup-menu(fontMenu)\n\
-	<Btn1Down>:             mouse-set-text-cursor()key(enter)\n\
-	<Btn2Down>:             mouse-set-text-cursor()\n\
+	<Btn1Down>:             select-start()\n\
+	<Btn1Motion>:           select-extend()\n\
+	<Btn1Up>:               select-end()\n\
+	<Btn2Up>:               insert-selection(PRIMARY, CLIPBOARD)\n\
 	<Btn3Down>:             key(pf3)
 
 

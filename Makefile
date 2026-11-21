@@ -3,7 +3,8 @@
 # uname; override with "make UNAME_S=Linux" if needed.
 #
 #   make                  build ./x3179
-#   make test             build + run tests/smoke.sh
+#   make test             build + run tests/host_tests.sh, tests/smoke.sh
+#   make test-local       build + run tests/host_tests.sh (no network)
 #   make clean
 #
 # macOS: needs XQuartz (https://www.xquartz.org), which provides
@@ -90,10 +91,13 @@ x3179.o: x3179_ad.h
 # ColorScreen widget struct, and stale objects would use old offsets.
 $(OBJS): $(wildcard *.h)
 
-test: x3179
+test: test-local
 	sh tests/smoke.sh
+
+test-local: x3179
+	sh tests/host_tests.sh
 
 clean:
 	rm -f $(OBJS) x3179 x3179_ad.h
 
-.PHONY: test clean
+.PHONY: test test-local clean

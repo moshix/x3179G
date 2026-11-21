@@ -9,6 +9,7 @@ TrueColor visuals (Xvfb, XQuartz); no PIL needed.
 
 Usage: xwd_bbox.py FILE.xwd
        xwd_bbox.py --count RRGGBB FILE.xwd   (number of pixels of colour)
+       xwd_bbox.py --where RRGGBB FILE.xwd   ("x0 y0 x1 y1" box of colour)
 """
 import struct
 import sys
@@ -27,6 +28,26 @@ def count_colour(path, rgb):
                                  y * bytes_per_line)
         n += sum(1 for p in row if (p & 0xFFFFFF) == rgb)
     print(n)
+
+
+def where_colour(path, rgb):
+    """Print the inclusive box around all pixels of colour rgb."""
+    (header_size, width, height, byte_order, bpp, bytes_per_line,
+     ncolors) = read_header(path)
+    data = open(path, "rb").read()
+    pix = data[header_size + 12 * ncolors:]
+    order = "<" if byte_order == 0 else ">"
+    xs, ys = [], []
+    for y in range(height):
+        row = struct.unpack_from(order + "%dI" % width, pix,
+                                 y * bytes_per_line)
+        hit = [x for x, p in enumerate(row) if (p & 0xFFFFFF) == rgb]
+        if hit:
+            xs += [hit[0], hit[-1]]
+            ys.append(y)
+    if not xs:
+        sys.exit("colour %06x not found" % rgb)
+    print(min(xs), min(ys), max(xs), max(ys))
 
 
 def read_header(path):
@@ -74,5 +95,7 @@ def main(path):
 if __name__ == "__main__":
     if sys.argv[1] == "--count":
         count_colour(sys.argv[3], int(sys.argv[2], 16))
+    elif sys.argv[1] == "--where":
+        where_colour(sys.argv[3], int(sys.argv[2], 16))
     else:
         main(sys.argv[1])

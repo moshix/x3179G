@@ -174,6 +174,7 @@ extern void XawDrawImage();
 
 extern void XawColScrSet();
 extern void XawColScrSize();
+extern void XawColScrXyToCell();	/* pixel -> screen cell (row, column) */
 
 /* Class record constants */
 

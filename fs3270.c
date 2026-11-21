@@ -128,6 +128,17 @@ static Byte   last_wcc;
 static Bool   last_cmd;
 static Bool   base_color = FALSE;
 
+/*
+ * Mouse selection (copy).  A rectangle of cells from the anchor (where
+ * the button went down) to the extent (where the pointer is now), shown
+ * by drawing the cells with reverse video toggled.  sel_on is FALSE
+ * until the pointer leaves the anchor cell, so a plain click selects
+ * nothing.  Rows and columns are screen cells (0-based).
+ */
+static int    sel_on = FALSE;
+static int    sel_ar, sel_ac;		/* anchor row/column */
+static int    sel_er, sel_ec;		/* extent row/column */
+
 struct termtype {
     int		rows;
     int		cols;
@@ -174,6 +185,8 @@ static void			repeat_to ();
 static int			screenaddr ();
 static void			send_all_fields ();
 static void			send_modified_fields ();
+static void			host_read_modified ();
+static void			reply_modified_fields ();
 static void			send_pa ();
 static int			set_attribute ();
 static void			set_bufaddr ();
@@ -213,7 +226,7 @@ static void clear_screen_buffer ()
 
     bzero((char *)chrbuf, sizeof (chrbuf));  
     bzero((char *)atrbuf, sizeof (atrbuf));  
-    
+    sel_on = FALSE;		/* new screen: the old selection is gone */
 }
 
 /* fs_decode - decode host data stream.
@@ -321,7 +334,7 @@ void fs_decode_command (bp, length)
 	
       case CMD_RM:
       case CMD_SNA_RM:
-	send_modified_fields (last_aid);
+	host_read_modified (last_aid);	/* host read: keyboard untouched */
 	break;
 	
       case CMD_SNA_RMA:
@@ -1245,7 +1258,35 @@ Byte	wcc;
 }
 
 
-/* stuff an regular (i.e. non-extended) attribute 
+/*
+ * merge_sa_attr - lay the character attributes of the last Set Attribute
+ * order (current_attr_ra) over a field's own attributes.
+ *
+ * The low byte holds two independent parts: the colour nibble
+ * (SATTR_COLORMASK) and the highlight/transparency nibble (0xf0).  An SA
+ * value of 0 in a part means "default", i.e. take it from the field.
+ * The old code copied SA's whole low byte, so the very common
+ * "SA highlight=default, SA colour=default" reset (3270BBS sends one in
+ * every chat header) zeroed the colour of every field started after it
+ * in the same write, and they all fell back to the protected base
+ * colour.  Only a part SA actually set (non-zero) may override the field.
+ */
+static Attr
+  merge_sa_attr (field_attr)
+     Attr	field_attr;
+{
+  if (current_attr_ra == -1 || current_attr_ra == 0)
+    return field_attr;			/* no SA in this write */
+  if (current_attr_ra & SATTR_COLORMASK)
+    field_attr = (field_attr & ~SATTR_COLORMASK)
+      | (current_attr_ra & SATTR_COLORMASK);
+  if (current_attr_ra & 0xf0)
+    field_attr = (field_attr & ~0xf0) | (current_attr_ra & 0xf0);
+  return field_attr;
+}
+
+
+/* stuff an regular (i.e. non-extended) attribute
  * Byte into the current screen position 
  */
 static void 
@@ -1274,8 +1315,7 @@ static void
     if (++sbaddr  >= screen_size) break;  /* un champ ne wrappe pas ??? */
   }
 
-  if (current_attr_ra != -1 & current_attr_ra != 0)
-   current_attr = (current_attr & ~0xff) + (current_attr_ra & 0xff) ;
+  current_attr = merge_sa_attr(current_attr);
 
   ADDR_TO_RC(buffer_addr,r,c);
 
@@ -1306,8 +1346,7 @@ fs_start_field_extended(npairs, aptr)
 
   current_attr &= ~SATTR_ATTRIB;
   INC_BA(sbaddr);
-  if ((current_attr_ra != -1) & (current_attr_ra != 0))
-      current_attr = (current_attr & ~0xff) + (current_attr_ra & 0xff);
+  current_attr = merge_sa_attr(current_attr);
 
    while (!IS_ATTR(sbaddr)) {
   atrbuf[sbaddr] = (current_attr & ~0xff) + (atrbuf[sbaddr]  & 0xff);
@@ -1370,10 +1409,9 @@ fs_int_sba(adr1,adr2)
 /*  il faut retrouver le current_attr  */
    sbaddr = buffer_addr;
    DEC_BA(sbaddr);
-   if (current_attr_ra == -1 | current_attr_ra == 0)
-  current_attr = atrbuf[get_field_attribute(sbaddr)]
-	      & ~SATTR_ATTRIB;
-  else current_attr = current_attr_ra  & ~SATTR_ATTRIB ;
+  /* the field at the new address, with any SA in force laid over it */
+  current_attr = merge_sa_attr(atrbuf[get_field_attribute(sbaddr)]
+			       & ~SATTR_ATTRIB);
 }
 
 /* implement the Repeat to Address order */
@@ -1493,13 +1531,38 @@ static void erase_all_unprotected ()
  * do *lots* of optimisation here!
  */
 
+/* is buffer address addr inside the selection rectangle? */
+static int sel_contains (addr)
+     int	addr;
+{
+  int r, c;
+
+  if (!sel_on)
+    return FALSE;
+  ADDR_TO_RC(addr, r, c);
+  return r >= min(sel_ar, sel_er) && r <= max(sel_ar, sel_er)
+      && c >= min(sel_ac, sel_ec) && c <= max(sel_ac, sel_ec);
+}
+
+/* the attribute a cell is drawn with: selected cells have reverse
+ * video toggled (so a reverse field shows normal while selected) */
+static Attr disp_attr (addr)
+     int	addr;
+{
+  Attr a = atrbuf[addr];
+
+  if (sel_contains(addr))
+    a ^= SATTR_D_REVERSE;
+  return a;
+}
+
 screen_update(addr)
      int addr;
 {
   int r,c;
   static char ebcdic_blank = 0x40;
   char text  = chrbuf[addr];
-  Attr attr  = atrbuf[addr];
+  Attr attr  = disp_attr(addr);
   int curr_color = convcol(attr) & SATTR_COLORMASK;
  
   ADDR_TO_RC(addr,r,c);
@@ -1519,6 +1582,192 @@ screen_update(addr)
   us_stop_col = max (us_stop_col,c+1);}
   else DrawString(r, c, &ebcdic_blank, 1,(attr & ~SATTR_D_REVERSE),
      curr_color);        }
+}
+
+
+/*
+ * ---- mouse selection, copy and paste (called from eventhdlr.c) ----
+ */
+
+void fs_select_clear ();
+
+/* keep a cell position on the current screen */
+static void sel_clamp (r, c)
+     int	*r, *c;
+{
+  *r = max(0, min(*r, lines - 1));
+  *c = max(0, min(*c, linelength - 1));
+}
+
+/* redraw the cells from (top,left) to (bottom,right) inclusive */
+static void sel_redraw (top, left, bottom, right)
+     int	top, left, bottom, right;
+{
+  int r, c;
+
+  cursor_off();
+  for (r = top; r <= bottom; r++)
+    for (c = left; c <= right; c++)
+      screen_update(r * linelength + c);
+  cursor_on();
+}
+
+/* mouse button pressed on cell (r,c): drop any old selection, anchor
+ * a new one there */
+void fs_select_start (r, c)
+     int	r, c;
+{
+  fs_select_clear();
+  sel_clamp(&r, &c);
+  sel_ar = sel_er = r;
+  sel_ac = sel_ec = c;
+}
+
+/*
+ * Pointer dragged to cell (r,c).  The selection becomes visible once the
+ * pointer moves off the anchor cell.  Only the bounding box of the old
+ * and the new rectangle can change, so only that is redrawn.
+ */
+void fs_select_extend (r, c)
+     int	r, c;
+{
+  int top, left, bottom, right;
+
+  sel_clamp(&r, &c);
+  if (r == sel_er && c == sel_ec)
+    return;
+  /* box spanning the anchor, the old extent and the new one */
+  top    = min(sel_ar, min(sel_er, r));
+  bottom = max(sel_ar, max(sel_er, r));
+  left   = min(sel_ac, min(sel_ec, c));
+  right  = max(sel_ac, max(sel_ec, c));
+  sel_er = r;
+  sel_ec = c;
+  sel_on = TRUE;
+  sel_redraw(top, left, bottom, right);
+}
+
+/* is a selection shown? */
+int fs_select_active ()
+{
+  return sel_on;
+}
+
+/* remove the selection highlight */
+void fs_select_clear ()
+{
+  if (!sel_on)
+    return;
+  sel_on = FALSE;
+  sel_redraw(min(sel_ar, sel_er), min(sel_ac, sel_ec),
+	     max(sel_ar, sel_er), max(sel_ac, sel_ec));
+}
+
+/*
+ * Copy the selected cells into buf as Latin-1 text: one line per row,
+ * trailing blanks dropped, rows joined by '\n'.  Field attribute cells
+ * and nulls become blanks; cells of non-display fields (passwords) are
+ * copied as blanks too, so a selection never reveals hidden input.
+ * Returns the text length (buf is always NUL-terminated).
+ */
+int fs_select_text (buf, size)
+     char	*buf;
+     int	size;
+{
+  int r, c, n = 0, line_start, addr;
+  unsigned char ch;
+
+  if (size < 1)
+    return 0;
+  if (sel_on) {
+    for (r = min(sel_ar, sel_er); r <= max(sel_ar, sel_er); r++) {
+      if (r != min(sel_ar, sel_er) && n < size - 1)
+	buf[n++] = '\n';
+      line_start = n;
+      for (c = min(sel_ac, sel_ec); c <= max(sel_ac, sel_ec); c++) {
+	addr = r * linelength + c;
+	if (IS_ATTR(addr)
+	    || (atrbuf[addr] & SATTR_DISPLAY) == SATTR_IN)
+	  ch = ' ';
+	else
+	  ch = etoa[chrbuf[addr]];
+	if (n < size - 1)
+	  buf[n++] = ch;
+      }
+      while (n > line_start && buf[n - 1] == ' ')	/* trim the row */
+	n--;
+    }
+  }
+  buf[n] = '\0';
+  return n;
+}
+
+/* plain click on cell (r,c): move the cursor there */
+void fs_cursor_to (r, c)
+     int	r, c;
+{
+  sel_clamp(&r, &c);
+  cursor_move(r * linelength + c);
+}
+
+/* can ch be typed at the cursor without locking the keyboard?  These
+ * are the checks fs_character makes before it locks. */
+static int paste_ok (ch)
+     int	ch;
+{
+  if (keyboard_locked)
+    return FALSE;
+  if (IS_ATTR(cursor_addr) || IS_PROTECTED(cursor_addr))
+    return FALSE;
+  if (IS_NUMERIC(cursor_addr) && !(isdigit(ch) || ch == '.'))
+    return FALSE;
+  return TRUE;
+}
+
+/*
+ * Paste Latin-1 text at the cursor as if it were typed.  A newline acts
+ * like the Return key (first input field of the next line), a tab like
+ * Tab.  Text that does not fit - it reaches a protected cell - is dropped
+ * up to the next newline instead of locking the keyboard, so a long
+ * paste fills the field and stops.  A trailing newline is ignored, so
+ * pasting a copied line leaves the cursor at its end.
+ */
+void fs_paste (text, len)
+     unsigned char	*text;
+     int		len;
+{
+  int i, ch, skip = FALSE;
+
+  for (i = 0; i < len; i++) {
+    if (keyboard_locked)
+      break;
+    ch = text[i];
+    if (ch == '\r') {			/* CR LF and lone CR: newline */
+      if (i + 1 < len && text[i + 1] == '\n')
+	continue;
+      ch = '\n';
+    }
+    if (ch == '\n') {
+      if (i == len - 1)
+	break;
+      fs_return();
+      skip = FALSE;
+      continue;
+    }
+    if (skip)
+      continue;
+    if (ch == '\t') {
+      fs_tab();
+      continue;
+    }
+    if (ch < 0x20 || (ch >= 0x7f && ch < 0xa0))	/* other controls */
+      continue;
+    if (!paste_ok(ch)) {
+      skip = TRUE;
+      continue;
+    }
+    fs_character(ch);
+  }
 }
 
 
@@ -1554,19 +1803,49 @@ static void send_all_fields (aid)
 
 /* construct a 3270 data stream as if responding to a Read Modified */
 
+/*
+ * An AID key (Enter, PFn, SysReq) sends the modified fields AND locks the
+ * keyboard until the host answers.  A host-initiated Read Modified
+ * command must only send them: on a real 3270 a read command never
+ * touches the keyboard.  The old code treated both alike, so every host
+ * Read Modified locked x3179's keyboard and characters typed until the
+ * host's next unlocking write were thrown away.  3270BBS polls the chat
+ * input field this way every 2 seconds for its "is typing" indicator.
+ */
 static void send_modified_fields (aid)
      int	aid;
 {
+  reply_modified_fields (aid, TRUE);
+}
+
+/* answer a host Read Modified command: no keyboard lock, insert mode kept */
+static void host_read_modified (aid)
+     int	aid;
+{
+  reply_modified_fields (aid, FALSE);
+}
+
+/*
+ * Build the inbound Read Modified data stream.  from_key is TRUE when an
+ * AID key caused it; only then are the AID-key side effects applied
+ * (keyboard lock, insert mode off, "X clock" status indicator).
+ */
+static void reply_modified_fields (aid, from_key)
+     int	aid;
+     int	from_key;
+{
   register int baddr,sbaddr;
-  
+
   DBUG_ENTER("send_modified_fields");
-  
-  key_AID();
+
+  if (from_key) {
+    key_AID();
 
 #   ifndef STICKYINSERT
-  insert_mode(FALSE);
+    insert_mode(FALSE);
 #   endif
-  
+  }
+
   if (aid == AID_SYSREQ) {	/* construct TEST REQUEST header */
     *nfrontp++ = EBCDIC_SOH;
     *nfrontp++ = atoe['%'];
@@ -1574,7 +1853,8 @@ static void send_modified_fields (aid)
     *nfrontp++ = EBCDIC_STX;
   }
   else {			/* construct read header */
-    keyboard_locked = TRUE;
+    if (from_key)
+      keyboard_locked = TRUE;
 /*  si curseur graphique affiche envoyer la position */
     if (graphic_cursor) {
         em_detach_graphic_cursor();
@@ -1935,8 +2215,19 @@ static Byte highlight[] = { /* ok */
 static Byte charsets[] = {
     0x81, 0x85, 0xf2, 0x00, 0x09, 0x10, 0x70, 0x00,
     0x00, 0x00, 0x07, 
+    /*
+     * Base character set descriptors: the last two bytes are the code
+     * page.  It must match the tables we draw and type with (asc_ebc.c):
+     * CP037.  It used to say 0x0129 (CP297, French), so hosts sent French
+     * EBCDIC and "!" showed as "|", "\" as "$", and so on.
+     */
+#ifndef FRENCH
+    0x00, 0x00, 0x00, 0x02, 0xaa, 0x00, 0x25,
+    0x00, 0x00, 0x00, 0x02, 0xb9, 0x00, 0x25,
+#else
     0x00, 0x00, 0x00, 0x02, 0xaa, 0x01, 0x29,
     0x00, 0x00, 0x00, 0x02, 0xb9, 0x01, 0x29,
+#endif
     0x01, 0x00, 0xf1, 0x03, 0xc3, 0x01, 0x36,
     0x02, 0x80, 0xff, 0x00, 0x00, 0x00, 0x00,
     0x03, 0x80, 0xff, 0x00, 0x00, 0x00, 0x00,
@@ -2121,6 +2412,21 @@ register int	baddr;
 }
 
 
+/*
+ * The EBCDIC code for a typed or pasted character.  ch is a Latin-1 code
+ * (0..255) or one of the negative DO_DUP / DO_FIELDMARK pseudo keys,
+ * which have their own EBCDIC control codes (atoe[] only covers 0..255).
+ */
+static int char_to_ebcdic (ch)
+     int	ch;
+{
+  if (ch == DO_DUP)
+    return EBCDIC_DUP;
+  if (ch == DO_FIELDMARK)
+    return EBCDIC_FM;
+  return atoe[ch & 0xff];
+}
+
 int fs_character (ch)
      int	ch;
 {
@@ -2197,7 +2503,7 @@ int fs_character (ch)
 	       (char *) &chrbuf[baddr+1], 
 	       ((screen_size) - 1) - baddr);
       }
-      chrbuf[baddr] = atoe[ch];
+      chrbuf[baddr] = char_to_ebcdic(ch);
       atrbuf[baddr] |= SATTR_MDT;
       atrbuf[baddr] = atrbuf[get_field_attribute(baddr)]  & ~SATTR_ATTRIB
 	|  SATTR_MDT;
@@ -2211,7 +2517,7 @@ int fs_character (ch)
     }
   }
   else {
-    chrbuf[baddr] = atoe[ch];
+    chrbuf[baddr] = char_to_ebcdic(ch);
     atrbuf[baddr] = atrbuf[get_field_attribute(baddr)]  & ~SATTR_ATTRIB
 		|  SATTR_MDT;
     cursor_off ();
@@ -3170,11 +3476,11 @@ int next_item(x, y, s, attribs,color)
 
     *x = curr_x;		
     *y = curr_y;
-    *attribs = GET_CURR_ATTRIB(curr_pos);
+    *attribs = disp_attr(curr_pos);	/* selection shown on expose too */
     *color = convcol(*attribs) & SATTR_COLORMASK;
 
     while ((curr_x < x2) &&
-	   (*attribs == GET_CURR_ATTRIB(curr_pos)))
+	   (*attribs == disp_attr(curr_pos)))
       {
 	*s++ = chrbuf[curr_pos]; 
 	curr_pos++;		

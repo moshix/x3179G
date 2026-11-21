@@ -47,3 +47,12 @@ extern int fs_right ();
 extern int fs_sysreq ();
 extern int fs_tab ();
 extern int fs_up ();
+
+/* mouse selection, copy and paste (fs3270.c) */
+extern void fs_select_start ();
+extern void fs_select_extend ();
+extern void fs_select_clear ();
+extern int  fs_select_active ();
+extern int  fs_select_text ();
+extern void fs_cursor_to ();
+extern void fs_paste ();
