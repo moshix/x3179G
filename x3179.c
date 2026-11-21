@@ -126,6 +126,10 @@ static XrmOptionDescRec options[] = {
   {"-fg",  	"*foreground",	XrmoptionSepArg,        NULL},
   {"-bg",  	"*background",	XrmoptionSepArg,        NULL},
   {"-debug",  	"*debug",	XrmoptionSepArg,        NULL},
+  /* replaces Xt's own -font/-fn, which set *font (ignored by the
+   * scalable text code); see ApplyUserFont() in ColorScreen.c */
+  {"-font",	"*userFont",	XrmoptionSepArg,	NULL},
+  {"-fn",	"*userFont",	XrmoptionSepArg,	NULL},
 };
 
 
@@ -271,17 +275,61 @@ split_host_port()
 }
 
 
+/*
+ * usage - "-h": list the command-line switches.  Every line stays
+ * under 80 columns.  Keep this in step with options[] above.
+ */
+static void
+usage()
+{
+  static char *lines[] = {
+    "usage: %s [options]",
+    "",
+    "  -host NAME[:PORT]  host to connect to (default port 23)",
+    "  -model N           3270 model 2, 3, 4 or 5 (default 4)",
+    "  -font NAME         screen font: family name (\"menlo\"),",
+    "                     XLFD, XLFD pattern with %%d, or alias (9x15)",
+    "  -fn NAME           same as -font",
+    "  -fg COLOR          default text colour",
+    "  -bg COLOR          background colour",
+    "  -logfile FILE      write a trace log to FILE",
+    "  -debug FLAGS       dbug trace flags",
+    "  -h, -help          show this help and exit",
+    "",
+    "Standard X options also work, e.g. -display, -geometry, -xrm.",
+    NULL
+  };
+  char *name = strrchr(prog_name, '/');	/* basename: keeps line 1 short */
+  int i;
+
+  name = name ? name + 1 : prog_name;
+  for (i = 0; lines[i] != NULL; i++) {
+    printf(lines[i], name);
+    putchar('\n');
+  }
+}
+
+
 main(argc, argv)
      int argc;
      char **argv;
 {
   void fill();
   int rows, cols;
+  int i;
   char buf[100];
 
   DBUG_ENTER("main");
 
   prog_name = argv[0];
+
+  /* -h before XtInitialize, so it works without an X display */
+  for (i = 1; i < argc; i++)
+    if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-help")
+	|| !strcmp(argv[i], "--help")) {
+      usage();
+      exit(0);
+    }
 
   DBUG_PROCESS(prog_name);
 

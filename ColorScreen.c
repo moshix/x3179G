@@ -298,6 +298,10 @@ static XtResource resources[] = {
   {XtNfontSize, XtCFontSize, XtRInt, sizeof(int),
      offset(colorScreen.font_size), XtRImmediate, (caddr_t) 13},
 
+  /* -font NAME: overrides scalableFont/font, see ApplyUserFont() */
+  {XtNuserFont, XtCUserFont, XtRString, sizeof(String),
+     offset(colorScreen.user_font), XtRImmediate, (caddr_t) NULL},
+
 };
 
 static void Initialize();
@@ -430,6 +434,7 @@ WidgetClass colorScreenWidgetClass = (WidgetClass)&colorScreenClassRec;
 #define Cw_scalable_font        cw->colorScreen.scalable_font
 #define Cw_font_size            cw->colorScreen.font_size
 #define Cw_cur_font_px          cw->colorScreen.cur_font_px
+#define Cw_user_font            cw->colorScreen.user_font
 #define Cw_x_margin             cw->colorScreen.x_margin
 #define Cw_y_margin             cw->colorScreen.y_margin
 
@@ -564,6 +569,159 @@ static XFontStruct *LoadScaledFont(cw, px)
     font_cache[px] = XLoadQueryFont(XtDisplay(cw), name);
   }
   return font_cache[px];
+}
+
+/*
+ * User font (-font NAME, resource userFont)
+ * -----------------------------------------
+ * NAME may be any of these, tried in this order:
+ *
+ *   1. a scalableFont pattern with one %d for the pixel size
+ *        -font '-*-menlo-medium-r-normal--%d-0-0-0-m-0-iso8859-1'
+ *   2. a scalable XLFD, i.e. pixel size 0 or *; we put %d there
+ *        -font '-bitstream-menlo-medium-r-normal--0-0-0-0-m-0-iso8859-1'
+ *   3. any font the server knows by that exact name: an alias or an
+ *      XLFD with a fixed size.  Text then keeps that size and does
+ *      NOT follow the window size.
+ *        -font 9x15
+ *   4. a family name; medium weight is preferred over others
+ *        -font menlo      -font 'luxi mono'
+ *
+ * If nothing matches we warn and keep the built-in default.  Fonts are
+ * only probed here; the widget keeps using the normal scalable/fixed
+ * code paths afterwards.
+ */
+#define XLFD_FIELDS	14	/* "-foundry-family-...-registry-encoding" */
+#define XLFD_PIXEL	7	/* PIXEL_SIZE is field 7 (1-based) */
+
+/*
+ * If name is an XLFD whose pixel size is "0" or "*", return a new
+ * pattern with "%d" as the pixel size and "0" as the point size
+ * (fields 7 and 8).  Otherwise return NULL.
+ */
+static char *XlfdToPattern(name)
+     char *name;
+{
+  /* start[i] = first char of field i; start[XLFD_FIELDS + 1] is one
+   * past the NUL, as if the string ended in another '-' */
+  char *start[XLFD_FIELDS + 2];
+  char *p, *pix, *out;
+  int n = 0;
+
+  if (name[0] != '-' || strchr(name, '%') != NULL)
+    return NULL;
+  for (p = name; *p; p++)
+    if (*p == '-') {
+      if (++n > XLFD_FIELDS)
+	return NULL;
+      start[n] = p + 1;
+    }
+  if (n != XLFD_FIELDS)
+    return NULL;
+  start[XLFD_FIELDS + 1] = p + 1;
+
+  /* pixel field must be exactly "0" or "*" (scalable) */
+  pix = start[XLFD_PIXEL];
+  if (start[XLFD_PIXEL + 1] - pix != 2 || (*pix != '0' && *pix != '*'))
+    return NULL;
+
+  /* prefix up to field 7, then "%d-0", then "-field9-...-field14" */
+  out = XtMalloc(strlen(name) + 8);
+  sprintf(out, "%.*s%%d-0%s", (int)(pix - name), name,
+	  start[XLFD_PIXEL + 2] - 1);
+  return out;
+}
+
+/*
+ * Try pattern as the scalable font.  On success it becomes
+ * Cw_scalable_font (Initialize then loads it from font_cache); on
+ * failure the old pattern is put back.
+ */
+static Boolean TryPattern(cw, pattern)
+     ColorScreenWidget cw;
+     char *pattern;
+{
+  String old = Cw_scalable_font;
+
+  if (!ValidFontPattern(pattern))
+    return FALSE;
+  Cw_scalable_font = pattern;
+  if (LoadScaledFont(cw, Cw_font_size) != NULL)
+    return TRUE;
+  Cw_scalable_font = old;
+  return FALSE;
+}
+
+/* Warn if fs is proportional: the 3270 grid assumes a fixed pitch. */
+static void CheckMonospaced(name, fs)
+     char *name;
+     XFontStruct *fs;
+{
+  char msg[300];
+
+  if (XTextWidth(fs, "M", 1) != XTextWidth(fs, "i", 1)) {
+    sprintf(msg, "font \"%.200s\" is not monospaced; "
+	    "columns will not line up", name);
+    XtWarning(msg);
+  }
+}
+
+static void ApplyUserFont(cw)
+     ColorScreenWidget cw;
+{
+  /* family-name patterns, best first; %s = family, %%d = pixel size */
+  static char *family_fmt[] = {
+    "-*-%s-medium-r-normal--%%d-0-0-0-m-0-iso8859-1",
+    "-*-%s-*-r-normal--%%d-0-0-0-m-0-iso8859-1",
+    "-*-%s-*-r-*--%%d-0-0-0-*-0-iso8859-1",
+    NULL
+  };
+  char *name = Cw_user_font, *pat, msg[300];
+  XFontStruct *fs;
+  int i;
+
+  if (name == NULL || *name == '\0')
+    return;
+
+  /* 1. an explicit pattern */
+  if (strchr(name, '%') != NULL) {
+    if (TryPattern(cw, name))
+      goto scalable;
+    goto notfound;
+  }
+
+  /* 2. scalable XLFD (pattern is kept for the widget's lifetime) */
+  if ((pat = XlfdToPattern(name)) != NULL) {
+    if (TryPattern(cw, pat))
+      goto scalable;
+    XtFree(pat);
+  }
+
+  /* 3. exact server font name: fixed size, no scaling */
+  if ((fs = XLoadQueryFont(XtDisplay(cw), name)) != NULL) {
+    Cw_default_font = fs;
+    Cw_scalable_font = "";		/* tells Initialize: don't scale */
+    CheckMonospaced(name, fs);
+    return;
+  }
+
+  /* 4. family name; '-' or '%' would break the XLFD we build */
+  if (strchr(name, '-') == NULL && strlen(name) < 200)
+    for (i = 0; family_fmt[i] != NULL; i++) {
+      pat = XtMalloc(strlen(family_fmt[i]) + strlen(name) + 1);
+      sprintf(pat, family_fmt[i], name);
+      if (TryPattern(cw, pat))
+	goto scalable;
+      XtFree(pat);
+    }
+
+ notfound:
+  sprintf(msg, "font \"%.200s\" not found; using the default font", name);
+  XtWarning(msg);
+  return;
+
+ scalable:
+  CheckMonospaced(name, LoadScaledFont(cw, Cw_font_size));
 }
 
 /*
@@ -711,6 +869,7 @@ static void Initialize(request, new)
     Cw_cur_font_px = 0;
     if (Cw_font_size < MIN_FONT_PX) Cw_font_size = MIN_FONT_PX;
     if (Cw_font_size > MAX_FONT_PX) Cw_font_size = MAX_FONT_PX;
+    ApplyUserFont(cw);		/* -font may replace either font */
     if (ValidFontPattern(Cw_scalable_font)) {
       XFontStruct *fs = LoadScaledFont(cw, Cw_font_size);
       if (fs != NULL) {

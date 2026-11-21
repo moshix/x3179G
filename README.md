@@ -40,6 +40,34 @@ at it, or use `-xrm`. Yours take precedence over the built-in ones.
 Resize the window and the text resizes with it. To start with smaller
 or bigger text, add `-xrm '*fontSize: 10'` (the default is 13).
 
+`x3179 -h` lists all the switches.
+
+### Fonts
+
+`-font NAME` (or `-fn`) picks the screen font. These read well and
+scale smoothly when you resize the window:
+
+    x3179 -host www.moshix.tech:2300 -font menlo
+    x3179 -host www.moshix.tech:2300 -font 'luxi mono'
+    x3179 -host www.moshix.tech:2300 -font 'courier 10 pitch'
+
+All three come with XQuartz on macOS. On Linux try
+`-font 'dejavu sans mono'` or `-font 'liberation mono'`. `xlsfonts`
+shows what your X server has.
+
+NAME can be:
+
+- a family name: `menlo`, `'luxi mono'`
+- a scalable XLFD (pixel size `0` or `*`):
+  `'-bitstream-menlo-medium-r-normal--0-0-0-0-m-0-iso8859-1'`
+- an XLFD pattern with `%d` where the pixel size goes
+- a fixed-size font or alias such as `9x15`. The text then stays at
+  that size when the window is resized.
+
+An unknown font prints a warning and the default font is used. Use a
+monospaced font: proportional fonts work but the columns will not
+line up (you get a warning).
+
 ## Keys
 
     Return       newline (next input field)

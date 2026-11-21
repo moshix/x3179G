@@ -67,6 +67,7 @@ typedef struct {
     int         thick_line;             /* number of Pixels for drawing a thick line */
     String      scalable_font;          /* XLFD with one %d (pixel size), "" = off */
     int         font_size;              /* initial pixel size for scalable_font */
+    String      user_font;              /* -font NAME, NULL = built-in default */
 
     /* private state */
 

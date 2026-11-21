@@ -135,6 +135,9 @@
 # define XtCScalableFont        "ScalableFont"
 # define XtNfontSize            "fontSize"
 # define XtCFontSize            "FontSize"
+/* -font: family, XLFD, XLFD pattern or alias (see ApplyUserFont) */
+# define XtNuserFont            "userFont"
+# define XtCUserFont            "UserFont"
 
 
 # define N_FONTS	3

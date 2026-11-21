@@ -4,7 +4,8 @@
 #
 #   make                  build ./x3179
 #   make test             build + run tests/host_tests.sh, tests/smoke.sh
-#   make test-local       build + run tests/host_tests.sh (no network)
+#   make test-local       build + run tests/host_tests.sh and
+#                         tests/font_tests.sh (no network)
 #   make clean
 #
 # macOS: needs XQuartz (https://www.xquartz.org), which provides
@@ -96,6 +97,7 @@ test: test-local
 
 test-local: x3179
 	sh tests/host_tests.sh
+	sh tests/font_tests.sh
 
 clean:
 	rm -f $(OBJS) x3179 x3179_ad.h
